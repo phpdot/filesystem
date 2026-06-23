@@ -25,5 +25,11 @@ final readonly class FilesystemConfig
         public int $chunkSize = 8388608,
         public int $sessionTtl = 86400,
         public string $sessionDirectory = 'storage/.uploads',
+        public int $temporaryUrlTtl = 3600,
+        public string $defaultPathPattern = '{date}/{uuid}{ext}',
+        public int $draftTtl = 86400,
+        public int $softDeleteRetention = 2592000,
+        public string $quarantinePrefix = '.quarantine',
+        public string $fileRecordsDirectory = 'storage/.files',
     ) {}
 }

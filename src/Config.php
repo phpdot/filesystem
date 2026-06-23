@@ -21,6 +21,7 @@ final class Config
     public const MIME_TYPE = 'mimetype';
     public const CHUNK_SIZE = 'chunk_size';
     public const RETAIN_VISIBILITY = 'retain_visibility';
+    public const EXPIRES_AT = 'expires_at';
 
     /**
      * @param array<string,mixed> $options

@@ -127,6 +127,36 @@ final class FilesystemTest extends TestCase
         $fs->temporaryUrl('x.txt', new DateTimeImmutable('+1 hour', new DateTimeZone('UTC')));
     }
 
+    public function testUrlReturnsPublicUrlForPublicObject(): void
+    {
+        $fs = new Filesystem(new UrlCapableAdapter($this->adapter()), $this->writeContents());
+        $fs->write('pub.txt', 'x', [Config::VISIBILITY => 'public']);
+
+        self::assertSame('https://cdn.example/pub.txt', $fs->url('pub.txt'));
+    }
+
+    public function testUrlReturnsTemporaryUrlForPrivateObject(): void
+    {
+        $fs = new Filesystem(new UrlCapableAdapter($this->adapter()), $this->writeContents());
+        $fs->write('priv.txt', 'x', [Config::VISIBILITY => 'private']);
+
+        $expires = new DateTimeImmutable('2030-01-01T00:00:00Z');
+        $url = $fs->url('priv.txt', [Config::EXPIRES_AT => $expires]);
+
+        self::assertSame('https://cdn.example/priv.txt?expires=' . $expires->getTimestamp(), $url);
+    }
+
+    public function testUrlFallsBackToPublicUrlWhenTemporaryUnsupported(): void
+    {
+        // InMemoryAdapter supports neither capability: url() falls through to
+        // publicUrl(), which throws.
+        $fs = $this->filesystem();
+        $fs->write('x.txt', 'x');
+
+        $this->expectException(UnableToGeneratePublicUrl::class);
+        $fs->url('x.txt');
+    }
+
     public function testPathNormalizationCollapsesSegments(): void
     {
         $fs = $this->filesystem();

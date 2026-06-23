@@ -50,18 +50,19 @@ final class LocalAdapter implements AdapterInterface, ChecksumProvider, Multipar
 
     private readonly PathPrefixer $prefixer;
     private readonly PortableVisibility $visibilityConverter;
+    private readonly MimeTypeDetector $mimeDetector;
     private readonly string $defaultVisibility;
     private readonly ?string $publicUrl;
 
     public function __construct(
         FilesystemConfig $config,
         private readonly StreamFactoryInterface $streamFactory,
-        private readonly MimeTypeDetector $mimeDetector = new FinfoMimeTypeDetector(),
         ?PortableVisibility $visibilityConverter = null,
     ) {
         $this->prefixer = new PathPrefixer($config->root);
         $this->defaultVisibility = $config->visibility;
         $this->publicUrl = $config->publicUrl;
+        $this->mimeDetector = new FinfoMimeTypeDetector();
         $this->visibilityConverter = $visibilityConverter ?? new PortableVisibility();
         $this->ensureDirectoryExists($config->root, $this->visibilityConverter->forDirectory($config->visibility));
     }

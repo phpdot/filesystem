@@ -4,7 +4,10 @@ declare(strict_types=1);
 namespace PHPdot\Filesystem;
 
 use Closure;
+use DateInterval;
+use DateTimeImmutable;
 use DateTimeInterface;
+use DateTimeZone;
 use PHPdot\Container\Attribute\Binds;
 use PHPdot\Container\Attribute\Singleton;
 use PHPdot\Filesystem\Contract\AdapterInterface;
@@ -48,6 +51,7 @@ final class Filesystem implements FilesystemInterface
         private readonly WriteContents $writeContents,
         ?PathNormalizer $normalizer = null,
         private readonly ?EventDispatcherInterface $events = null,
+        private readonly FilesystemConfig $config = new FilesystemConfig(),
     ) {
         $this->normalizer = $normalizer ?? new WhitespacePathNormalizer();
     }
@@ -232,6 +236,49 @@ final class Filesystem implements FilesystemInterface
         }
 
         return $this->adapter->temporaryUrl($normalized, $expiresAt, new Config($config));
+    }
+
+    public function url(string $path, array $config = []): string
+    {
+        if ($this->supportsPublicUrls() && $this->visibility($path)->isPublic()) {
+            return $this->publicUrl($path, $config);
+        }
+
+        if ($this->supportsTemporaryUrls()) {
+            return $this->temporaryUrl($path, $this->urlExpiry($config), $config);
+        }
+
+        // No temporary capability: fall back to a public URL (throws if the
+        // adapter cannot generate one either).
+        return $this->publicUrl($path, $config);
+    }
+
+    public function supportsPublicUrls(): bool
+    {
+        return $this->adapter instanceof PublicUrlGenerator;
+    }
+
+    public function supportsTemporaryUrls(): bool
+    {
+        return $this->adapter instanceof TemporaryUrlGenerator;
+    }
+
+    /**
+     * @param array<string,mixed> $config
+     */
+    private function urlExpiry(array $config): DateTimeInterface
+    {
+        $expires = $config[Config::EXPIRES_AT] ?? null;
+        if ($expires instanceof DateTimeInterface) {
+            return $expires;
+        }
+
+        return $this->now()->add(new DateInterval('PT' . $this->config->temporaryUrlTtl . 'S'));
+    }
+
+    private function now(): DateTimeImmutable
+    {
+        return new DateTimeImmutable('now', new DateTimeZone('UTC'));
     }
 
     private function wrapWithProgress(StreamInterface $stream, string $path, Config $options, ?int $total): StreamInterface

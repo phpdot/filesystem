@@ -39,11 +39,14 @@ final class InMemoryAdapter implements AdapterInterface, ChecksumProvider
      */
     private array $directories = [];
 
+    private readonly MimeTypeDetector $mimeDetector;
+
     public function __construct(
         private readonly StreamFactoryInterface $streamFactory,
         private readonly string $defaultVisibility = 'private',
-        private readonly MimeTypeDetector $mimeDetector = new FinfoMimeTypeDetector(),
-    ) {}
+    ) {
+        $this->mimeDetector = new FinfoMimeTypeDetector();
+    }
 
     public function fileExists(string $path): bool
     {

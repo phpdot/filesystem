@@ -73,4 +73,25 @@ interface FilesystemInterface
      * @param array<string,mixed> $config
      */
     public function temporaryUrl(string $path, DateTimeInterface $expiresAt, array $config = []): string;
+
+    /**
+     * A visibility-aware URL: a {@see publicUrl} for a public object, otherwise a
+     * {@see temporaryUrl}. Pass a {@see \PHPdot\Filesystem\Config::EXPIRES_AT}
+     * ({@see DateTimeInterface}) in $config to override the default expiry.
+     *
+     * @param array<string,mixed> $config
+     */
+    public function url(string $path, array $config = []): string;
+
+    /**
+     * Whether the backend can generate public URLs — i.e. {@see publicUrl} will
+     * not throw. Lets callers branch on capability without catching exceptions.
+     */
+    public function supportsPublicUrls(): bool;
+
+    /**
+     * Whether the backend can generate presigned/temporary URLs — i.e.
+     * {@see temporaryUrl} will not throw.
+     */
+    public function supportsTemporaryUrls(): bool;
 }

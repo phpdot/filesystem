@@ -38,14 +38,15 @@ final class S3Adapter implements AdapterInterface, ChecksumProvider, MultipartCa
     private const HASH_BUFFER = 1048576;
 
     private readonly PathPrefixer $prefixer;
+    private readonly MimeTypeDetector $mimeDetector;
 
     public function __construct(
         private readonly S3Client $client,
         private readonly S3Config $config,
         private readonly string $defaultVisibility = 'private',
-        private readonly MimeTypeDetector $mimeDetector = new FinfoMimeTypeDetector(),
     ) {
         $this->prefixer = new PathPrefixer($config->prefix);
+        $this->mimeDetector = new FinfoMimeTypeDetector();
     }
 
     public function fileExists(string $path): bool

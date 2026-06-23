@@ -47,7 +47,7 @@
         "phpdot/container": "Auto-binds LocalAdapter to AdapterInterface via #[Singleton] + #[Binds]; rebind AdapterInterface to swap backends.",
         "phpdot/package": "Auto-discovers the filesystem binding and config DTO via attribute scanning.",
         "phpdot/config": "Hydrates FilesystemConfig from the generated config/filesystem.php.",
-        "phpdot/console": "Provides the filesystem:upload and filesystem:purge-sessions commands.",
+        "phpdot/console": "Provides the filesystem:upload, filesystem:purge-sessions and filesystem:purge-files commands.",
         "phpdot/http": "Provides the PSR-15 resumable (tus-style) upload endpoint for browser clients.",
         "phpdot/event": "Dispatches UploadProgressed / DownloadProgressed / UploadCompleted / UploadFailed PSR-14 events.",
         "phpdot/cache": "PSR-16 backing for the resumable session store across workers/nodes.",
