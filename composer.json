@@ -1,0 +1,61 @@
+{
+    "name": "phpdot/filesystem",
+    "description": "Coroutine-safe, PSR-native file storage for the PHPdot ecosystem: local and S3-compatible (AWS S3, Cloudflare R2, MinIO, DigitalOcean Spaces) over a PSR-18 + SigV4 client, with typed streams, resumable chunked uploads and first-class progress.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Omar Hamdan",
+            "email": "omar@phpdot.com"
+        }
+    ],
+    "keywords": ["filesystem", "storage", "s3", "psr-18", "swoole", "coroutine", "uploads"],
+    "require": {
+        "php": ">=8.5",
+        "ext-fileinfo": "*",
+        "ext-hash": "*",
+        "league/mime-type-detection": "^1.15",
+        "psr/event-dispatcher": "^1.0",
+        "psr/http-client": "^1.0",
+        "psr/http-factory": "^1.0",
+        "psr/http-message": "^2.0",
+        "psr/http-server-handler": "^1.0"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.94",
+        "nyholm/psr7": "^1.8",
+        "phpdot/console": "^0.1",
+        "phpdot/container": "^0.1",
+        "phpstan/phpstan": "^2.0",
+        "phpstan/phpstan-strict-rules": "^2.0",
+        "phpunit/phpunit": "^13.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "PHPdot\\Filesystem\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "PHPdot\\Filesystem\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "analyse": "phpstan analyse --memory-limit=256M",
+        "cs-fix": "php-cs-fixer fix",
+        "cs-check": "php-cs-fixer fix --dry-run --diff",
+        "check": [
+            "@test",
+            "@analyse",
+            "@cs-check"
+        ]
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "support": {
+        "source": "https://github.com/phpdot/filesystem",
+        "issues": "https://github.com/phpdot/monorepo/issues"
+    }
+}
