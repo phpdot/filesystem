@@ -9,7 +9,15 @@
             "email": "omar@phpdot.com"
         }
     ],
-    "keywords": ["filesystem", "storage", "s3", "psr-18", "swoole", "coroutine", "uploads"],
+    "keywords": [
+        "filesystem",
+        "storage",
+        "s3",
+        "psr-18",
+        "swoole",
+        "coroutine",
+        "uploads"
+    ],
     "require": {
         "php": ">=8.5",
         "ext-fileinfo": "*",
@@ -28,7 +36,8 @@
         "phpdot/container": "^0.1",
         "phpstan/phpstan": "^2.0",
         "phpstan/phpstan-strict-rules": "^2.0",
-        "phpunit/phpunit": "^13.0"
+        "phpunit/phpunit": "^13.0",
+        "symfony/http-client": "^8.0"
     },
     "autoload": {
         "psr-4": {

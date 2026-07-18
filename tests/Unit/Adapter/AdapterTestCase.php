@@ -235,35 +235,40 @@ abstract class AdapterTestCase extends TestCase
 
     public function testCreateAndDetectEmptyDirectory(): void
     {
-        if (!$this->supportsEmptyDirectories()) {
-            self::markTestSkipped('Adapter does not support standalone empty directories.');
-        }
-
         $this->adapter->createDirectory('empty/dir', new Config());
 
-        self::assertTrue($this->adapter->directoryExists('empty/dir'));
+        self::assertSame($this->supportsEmptyDirectories(), $this->adapter->directoryExists('empty/dir'));
     }
 
     // ---- visibility ----
 
     public function testWriteRespectsVisibilityConfig(): void
     {
-        if (!$this->supportsVisibility()) {
-            self::markTestSkipped('Adapter does not support visibility.');
-        }
-
         $this->adapter->write('pub.txt', $this->stream('x'), new Config([Config::VISIBILITY => 'public']));
+
+        if (!$this->supportsVisibility()) {
+            self::assertContains($this->adapter->visibility('pub.txt')->visibility(), ['public', 'private']);
+
+            return;
+        }
 
         self::assertSame('public', $this->adapter->visibility('pub.txt')->visibility());
     }
 
     public function testSetVisibilityRoundTrips(): void
     {
+        $this->writeString('v.txt', 'data');
+
         if (!$this->supportsVisibility()) {
-            self::markTestSkipped('Adapter does not support visibility.');
+            $before = $this->adapter->visibility('v.txt')->visibility();
+            $this->adapter->setVisibility('v.txt', 'public');
+            $this->adapter->setVisibility('v.txt', 'private');
+
+            self::assertSame($before, $this->adapter->visibility('v.txt')->visibility());
+
+            return;
         }
 
-        $this->writeString('v.txt', 'data');
         $this->adapter->setVisibility('v.txt', 'public');
         self::assertSame('public', $this->adapter->visibility('v.txt')->visibility());
 

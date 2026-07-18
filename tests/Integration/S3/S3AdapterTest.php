@@ -5,7 +5,6 @@ namespace PHPdot\Filesystem\Tests\Integration\S3;
 
 use DateTimeImmutable;
 use DateTimeZone;
-use GuzzleHttp\Client;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPdot\Filesystem\Adapter\S3\S3Adapter;
 use PHPdot\Filesystem\Adapter\S3\S3Client;
@@ -14,6 +13,7 @@ use PHPdot\Filesystem\Adapter\S3\SignatureV4;
 use PHPdot\Filesystem\Config;
 use PHPdot\Filesystem\Contract\AdapterInterface;
 use PHPdot\Filesystem\Tests\Unit\Adapter\AdapterTestCase;
+use Symfony\Component\HttpClient\Psr18Client;
 
 /**
  * Runs the full adapter contract suite against a real S3-compatible bucket,
@@ -71,7 +71,7 @@ final class S3AdapterTest extends AdapterTestCase
             new Config(),
         );
 
-        $body = (string)(new Client())->get($url, ['http_errors' => false])->getBody();
+        $body = (string) (new Psr18Client())->sendRequest((new Psr17Factory())->createRequest('GET', $url))->getBody();
         self::assertSame('presigned content', $body);
     }
 
@@ -117,6 +117,6 @@ final class S3AdapterTest extends AdapterTestCase
             prefix: $this->prefix,
         );
 
-        return new S3Adapter(new S3Client(new Client(), $factory, $factory, new SignatureV4(), $config), $config);
+        return new S3Adapter(new S3Client(new Psr18Client(), $factory, $factory, new SignatureV4(), $config), $config);
     }
 }
