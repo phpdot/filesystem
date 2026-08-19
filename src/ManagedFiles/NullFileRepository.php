@@ -22,12 +22,12 @@ final class NullFileRepository implements FileRepositoryInterface
         return $record;
     }
 
-    public function find(string $id): ?FileRecord
+    public function find(string $id): null|FileRecord
     {
         return null;
     }
 
-    public function findByPath(string $path): ?FileRecord
+    public function findByPath(string $path): null|FileRecord
     {
         return null;
     }

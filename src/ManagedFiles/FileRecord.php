@@ -52,15 +52,15 @@ final readonly class FileRecord
         public string $checksum,
         public Visibility $visibility,
         public DateTimeImmutable $createdAt,
-        public ?string $reference = null,
-        public ?string $referenceId = null,
+        public null|string $reference = null,
+        public null|string $referenceId = null,
         public array $tags = [],
         public bool $isDraft = false,
-        public ?DateTimeImmutable $expiresAt = null,
+        public null|DateTimeImmutable $expiresAt = null,
         public bool $isDeleted = false,
-        public ?DateTimeImmutable $deletedAt = null,
-        public ?Visibility $originalVisibility = null,
-        public ?string $originalPath = null,
+        public null|DateTimeImmutable $deletedAt = null,
+        public null|Visibility $originalVisibility = null,
+        public null|string $originalPath = null,
     ) {}
 
     /**
@@ -83,7 +83,7 @@ final readonly class FileRecord
      *
      * @return self
      */
-    public function withDraft(bool $isDraft, ?DateTimeImmutable $expiresAt): self
+    public function withDraft(bool $isDraft, null|DateTimeImmutable $expiresAt): self
     {
         return new self(
             $this->id,

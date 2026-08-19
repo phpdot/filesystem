@@ -37,7 +37,7 @@ interface FileRepositoryInterface
      *
      * @return ?FileRecord
      */
-    public function find(string $id): ?FileRecord;
+    public function find(string $id): null|FileRecord;
 
     /**
      * Find by path.
@@ -46,7 +46,7 @@ interface FileRepositoryInterface
      *
      * @return ?FileRecord
      */
-    public function findByPath(string $path): ?FileRecord;
+    public function findByPath(string $path): null|FileRecord;
 
     /**
      * Search managed file records by the given criteria.

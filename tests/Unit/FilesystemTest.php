@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+
 namespace PHPdot\Filesystem\Tests\Unit;
 
 use DateTimeImmutable;
@@ -55,7 +56,7 @@ final class FilesystemTest extends TestCase
         $fs = $this->filesystem();
 
         $fs->write('p.txt', 'hello world', [
-            Config::PROGRESS => static function (int $soFar, ?int $total) use (&$events): void {
+            Config::PROGRESS => static function (int $soFar, null|int $total) use (&$events): void {
                 $events[] = [$soFar, $total];
             },
         ]);

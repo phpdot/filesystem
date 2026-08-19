@@ -57,7 +57,7 @@ final class Files
         private readonly StreamFactoryInterface $streams,
         private readonly PathGenerator $pathGenerator,
         private readonly FilesystemConfig $config = new FilesystemConfig(),
-        private readonly ?EventDispatcherInterface $events = null,
+        private readonly null|EventDispatcherInterface $events = null,
     ) {}
 
     /**
@@ -241,7 +241,7 @@ final class Files
      *
      * @return ?FileRecord
      */
-    public function finalizeUpload(string $path): ?FileRecord
+    public function finalizeUpload(string $path): null|FileRecord
     {
         $record = $this->repository->findByPath($path);
         if ($record === null) {

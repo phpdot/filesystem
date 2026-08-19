@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+
 namespace PHPdot\Filesystem\Tests\Unit\Adapter\S3;
 
 use Psr\Http\Client\ClientInterface;

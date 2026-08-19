@@ -35,7 +35,7 @@ final readonly class UploadSession
         public string $id,
         public string $path,
         public string $uploadId,
-        public ?int $totalSize,
+        public null|int $totalSize,
         public int $bytesReceived,
         public array $parts,
         public int $chunkSize,

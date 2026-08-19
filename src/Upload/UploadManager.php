@@ -50,7 +50,7 @@ final class UploadManager implements UploadManagerInterface
         private readonly FilesystemConfig $config = new FilesystemConfig(),
     ) {}
 
-    public function create(string $path, ?int $totalSize, array $config = []): UploadSession
+    public function create(string $path, null|int $totalSize, array $config = []): UploadSession
     {
         $options = new Config($config);
         $uploadId = $this->multipart()->createMultipart($path, $options);

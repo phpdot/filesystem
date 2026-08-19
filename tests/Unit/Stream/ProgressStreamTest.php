@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+
 namespace PHPdot\Filesystem\Tests\Unit\Stream;
 
 use Closure;
@@ -44,7 +45,7 @@ final class ProgressStreamTest extends TestCase
         $inner = Stream::create('payload');
         $progress = new ProgressStream($inner, $this->recorder(), 7);
 
-        self::assertSame('payload', (string)$progress);
+        self::assertSame('payload', (string) $progress);
         self::assertSame([[7, 7]], $this->events);
     }
 
@@ -78,7 +79,7 @@ final class ProgressStreamTest extends TestCase
 
     private function recorder(): Closure
     {
-        return function (int $soFar, ?int $total): void {
+        return function (int $soFar, null|int $total): void {
             $this->events[] = [$soFar, $total];
         };
     }

@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+
 namespace PHPdot\Filesystem\Tests\Unit\Adapter;
 
 use Nyholm\Psr7\Factory\Psr17Factory;
@@ -25,7 +26,7 @@ use Psr\Http\Message\StreamInterface;
 abstract class AdapterTestCase extends TestCase
 {
     protected AdapterInterface $adapter;
-    private ?StreamFactoryInterface $streams = null;
+    private null|StreamFactoryInterface $streams = null;
 
     abstract protected function createAdapter(): AdapterInterface;
 

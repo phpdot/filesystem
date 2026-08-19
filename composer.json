@@ -22,22 +22,26 @@
         "php": ">=8.5",
         "ext-fileinfo": "*",
         "ext-hash": "*",
-        "league/mime-type-detection": "^1.15",
+        "league/mime-type-detection": "^1.16",
+        "phpdot/console": "^0.1",
         "psr/event-dispatcher": "^1.0",
         "psr/http-client": "^1.0",
         "psr/http-factory": "^1.0",
         "psr/http-message": "^2.0",
-        "psr/http-server-handler": "^1.0"
+        "psr/http-server-handler": "^1.0",
+        "symfony/console": "^8.0"
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.94",
         "nyholm/psr7": "^1.8",
-        "phpdot/console": "^0.1",
         "phpdot/container": "^0.1",
         "phpstan/phpstan": "^2.0",
         "phpstan/phpstan-strict-rules": "^2.0",
         "phpunit/phpunit": "^13.0",
         "symfony/http-client": "^8.0"
+    },
+    "suggest": {
+        "phpdot/container": "Autowires the container-attribute services and #[Config] DTOs declared in src (the attributes stay inert until reflected, so standalone consumers don't need it installed)."
     },
     "autoload": {
         "psr-4": {

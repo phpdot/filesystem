@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+
 namespace PHPdot\Filesystem\Tests\Integration\S3;
 
 use DateTimeImmutable;
@@ -13,6 +14,7 @@ use PHPdot\Filesystem\Adapter\S3\SignatureV4;
 use PHPdot\Filesystem\Config;
 use PHPdot\Filesystem\Contract\AdapterInterface;
 use PHPdot\Filesystem\Tests\Unit\Adapter\AdapterTestCase;
+use PHPUnit\Framework\Attributes\Group;
 use Symfony\Component\HttpClient\Psr18Client;
 
 /**
@@ -24,6 +26,7 @@ use Symfony\Component\HttpClient\Psr18Client;
  * PHPDOT_S3_TEST_BUCKET (and optionally PHPDOT_S3_TEST_ENDPOINT +
  * PHPDOT_S3_TEST_PATH_STYLE=1 for MinIO).
  */
+#[Group('integration')]
 final class S3AdapterTest extends AdapterTestCase
 {
     private string $prefix = '';

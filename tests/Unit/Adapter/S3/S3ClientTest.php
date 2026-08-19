@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+
 namespace PHPdot\Filesystem\Tests\Unit\Adapter\S3;
 
 use DateTimeImmutable;
@@ -65,7 +66,7 @@ final class S3ClientTest extends TestCase
     {
         $this->http->responses[] = $this->response(200, 'the contents');
 
-        self::assertSame('the contents', (string)$this->client()->getObject('a.txt'));
+        self::assertSame('the contents', (string) $this->client()->getObject('a.txt'));
     }
 
     public function testErrorResponseThrowsS3RequestFailedWithStatusAndCode(): void
@@ -129,7 +130,7 @@ final class S3ClientTest extends TestCase
         self::assertSame([], $this->http->requests);
     }
 
-    private function client(?S3Config $config = null): S3Client
+    private function client(null|S3Config $config = null): S3Client
     {
         return new S3Client(
             $this->http,
@@ -153,7 +154,7 @@ final class S3ClientTest extends TestCase
         return $response;
     }
 
-    private function listXml(string $key, bool $truncated, ?string $token): string
+    private function listXml(string $key, bool $truncated, null|string $token): string
     {
         $tokenXml = $token === null ? '' : "<NextContinuationToken>{$token}</NextContinuationToken>";
 

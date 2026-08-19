@@ -41,14 +41,14 @@ interface StorageAttributes extends JsonSerializable
      *
      * @return ?int
      */
-    public function lastModified(): ?int;
+    public function lastModified(): null|int;
 
     /**
      * Visibility.
      *
      * @return ?string
      */
-    public function visibility(): ?string;
+    public function visibility(): null|string;
 
     /**
      * Return any adapter-specific extra metadata.

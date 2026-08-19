@@ -6,7 +6,7 @@ declare(strict_types=1);
  * Maps the portable {@see Visibility} model onto POSIX permission bits and back.
  *
  * Public = world/group readable; private = owner-only. Defaults are the common,
- * portable choices (files 0644/0600, directories 0755/0700).
+ * portable choices (files 0o644/0o600, directories 0o755/0o700).
  *
  * @author Omar Hamdan <omar@phpdot.com>
  * @license MIT
@@ -27,10 +27,10 @@ final class PortableVisibility
      * @param int $directoryPrivate
      */
     public function __construct(
-        private readonly int $filePublic = 0644,
-        private readonly int $filePrivate = 0600,
-        private readonly int $directoryPublic = 0755,
-        private readonly int $directoryPrivate = 0700,
+        private readonly int $filePublic = 0o644,
+        private readonly int $filePrivate = 0o600,
+        private readonly int $directoryPublic = 0o755,
+        private readonly int $directoryPrivate = 0o700,
     ) {}
 
     /**
@@ -66,7 +66,7 @@ final class PortableVisibility
      */
     public function inverseForFile(int $permissions): string
     {
-        return ($permissions & 0044) !== 0 ? Visibility::Public->value : Visibility::Private->value;
+        return ($permissions & 0o044) !== 0 ? Visibility::Public->value : Visibility::Private->value;
     }
 
     /**
@@ -78,6 +78,6 @@ final class PortableVisibility
      */
     public function inverseForDirectory(int $permissions): string
     {
-        return ($permissions & 0044) !== 0 ? Visibility::Public->value : Visibility::Private->value;
+        return ($permissions & 0o044) !== 0 ? Visibility::Public->value : Visibility::Private->value;
     }
 }

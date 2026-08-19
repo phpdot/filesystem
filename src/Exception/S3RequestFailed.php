@@ -54,7 +54,7 @@ final class S3RequestFailed extends RuntimeException implements FilesystemExcept
      *
      * @return self
      */
-    public static function create(int $status, string $awsErrorCode, string $message = '', ?Throwable $previous = null): self
+    public static function create(int $status, string $awsErrorCode, string $message = '', null|Throwable $previous = null): self
     {
         $detail = $message !== '' ? $message : 'no detail provided';
         $label = $awsErrorCode !== '' ? $awsErrorCode : 'UnknownError';

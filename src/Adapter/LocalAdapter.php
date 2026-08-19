@@ -57,7 +57,7 @@ final class LocalAdapter implements AdapterInterface, ChecksumProvider, Multipar
     private readonly PortableVisibility $visibilityConverter;
     private readonly MimeTypeDetector $mimeDetector;
     private readonly string $defaultVisibility;
-    private readonly ?string $publicUrl;
+    private readonly null|string $publicUrl;
 
     /**
      * __construct.
@@ -69,7 +69,7 @@ final class LocalAdapter implements AdapterInterface, ChecksumProvider, Multipar
     public function __construct(
         FilesystemConfig $config,
         private readonly StreamFactoryInterface $streamFactory,
-        ?PortableVisibility $visibilityConverter = null,
+        null|PortableVisibility $visibilityConverter = null,
     ) {
         $this->prefixer = new PathPrefixer($config->root);
         $this->defaultVisibility = $config->visibility;
@@ -213,7 +213,7 @@ final class LocalAdapter implements AdapterInterface, ChecksumProvider, Multipar
             throw UnableToRetrieveMetadata::visibility($path, $this->lastError());
         }
 
-        return new FileAttributes($path, visibility: $this->visibilityConverter->inverseForFile($permissions & 0777));
+        return new FileAttributes($path, visibility: $this->visibilityConverter->inverseForFile($permissions & 0o777));
     }
 
     public function mimeType(string $path): FileAttributes

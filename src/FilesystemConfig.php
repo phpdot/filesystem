@@ -41,7 +41,7 @@ final readonly class FilesystemConfig
      */
     public function __construct(
         public string $root = 'storage',
-        public ?string $publicUrl = null,
+        public null|string $publicUrl = null,
         public string $visibility = 'private',
         public int $chunkSize = 8388608,
         public int $sessionTtl = 86400,

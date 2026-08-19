@@ -63,8 +63,8 @@ final class Filesystem implements FilesystemInterface
     public function __construct(
         private readonly AdapterInterface $adapter,
         private readonly WriteContents $writeContents,
-        ?PathNormalizer $normalizer = null,
-        private readonly ?EventDispatcherInterface $events = null,
+        null|PathNormalizer $normalizer = null,
+        private readonly null|EventDispatcherInterface $events = null,
         private readonly FilesystemConfig $config = new FilesystemConfig(),
     ) {
         $this->normalizer = $normalizer ?? new WhitespacePathNormalizer();
@@ -312,7 +312,7 @@ final class Filesystem implements FilesystemInterface
      *
      * @return StreamInterface
      */
-    private function wrapWithProgress(StreamInterface $stream, string $path, Config $options, ?int $total): StreamInterface
+    private function wrapWithProgress(StreamInterface $stream, string $path, Config $options, null|int $total): StreamInterface
     {
         $onProgress = $options->getCallable(Config::PROGRESS);
         $events = $this->events;
@@ -321,7 +321,7 @@ final class Filesystem implements FilesystemInterface
             return $stream;
         }
 
-        $callback = static function (int $soFar, ?int $totalBytes) use ($onProgress, $events, $path): void {
+        $callback = static function (int $soFar, null|int $totalBytes) use ($onProgress, $events, $path): void {
             if ($onProgress !== null) {
                 $onProgress($soFar, $totalBytes);
             }

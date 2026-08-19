@@ -36,7 +36,7 @@ final class UnableToCopyFile extends RuntimeException implements FilesystemOpera
      *
      * @return self
      */
-    public static function fromTo(string $source, string $destination, string $reason = '', ?Throwable $previous = null): self
+    public static function fromTo(string $source, string $destination, string $reason = '', null|Throwable $previous = null): self
     {
         $message = "Unable to copy file from {$source} to {$destination}.";
 

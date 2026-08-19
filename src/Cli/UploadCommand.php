@@ -80,7 +80,7 @@ final class UploadCommand extends Command
         $progress->start();
 
         $this->filesystem->write($destination, $this->streams->createStreamFromFile($source, 'rb'), [
-            Config::PROGRESS => static function (int $soFar, ?int $total) use ($progress): void {
+            Config::PROGRESS => static function (int $soFar, null|int $total) use ($progress): void {
                 if ($total !== null) {
                     $progress->setMaxSteps($total);
                 }

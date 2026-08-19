@@ -38,14 +38,14 @@ final class FileSubject
 
     private readonly MimeTypeDetector $mimeDetector;
 
-    private ?string $sample = null;
-    private ?int $size = null;
-    private ?string $mimeType = null;
+    private null|string $sample = null;
+    private null|int $size = null;
+    private null|string $mimeType = null;
     private bool $dimensionsResolved = false;
     /**
      * @var array{int,int}|null
      */
-    private ?array $dimensions = null;
+    private null|array $dimensions = null;
 
     /**
      * __construct.
@@ -134,7 +134,7 @@ final class FileSubject
      *
      * @return array{int,int}|null
      */
-    public function dimensions(): ?array
+    public function dimensions(): null|array
     {
         if ($this->dimensionsResolved) {
             return $this->dimensions;

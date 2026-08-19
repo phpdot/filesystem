@@ -27,10 +27,10 @@ final readonly class FileAttributes implements StorageAttributes
      */
     public function __construct(
         private string $path,
-        private ?int $fileSize = null,
-        private ?string $visibility = null,
-        private ?int $lastModified = null,
-        private ?string $mimeType = null,
+        private null|int $fileSize = null,
+        private null|string $visibility = null,
+        private null|int $lastModified = null,
+        private null|string $mimeType = null,
         private array $extraMetadata = [],
     ) {}
 
@@ -54,17 +54,17 @@ final readonly class FileAttributes implements StorageAttributes
      *
      * @return ?int
      */
-    public function fileSize(): ?int
+    public function fileSize(): null|int
     {
         return $this->fileSize;
     }
 
-    public function visibility(): ?string
+    public function visibility(): null|string
     {
         return $this->visibility;
     }
 
-    public function lastModified(): ?int
+    public function lastModified(): null|int
     {
         return $this->lastModified;
     }
@@ -74,7 +74,7 @@ final readonly class FileAttributes implements StorageAttributes
      *
      * @return ?string
      */
-    public function mimeType(): ?string
+    public function mimeType(): null|string
     {
         return $this->mimeType;
     }

@@ -34,13 +34,13 @@ final readonly class S3Config
     public function __construct(
         public string $bucket,
         public string $region = 'us-east-1',
-        public ?string $endpoint = null,
+        public null|string $endpoint = null,
         public bool $pathStyle = false,
-        public ?string $key = null,
-        public ?string $secret = null,
-        public ?string $token = null,
+        public null|string $key = null,
+        public null|string $secret = null,
+        public null|string $token = null,
         public string $prefix = '',
-        public ?string $publicUrl = null,
+        public null|string $publicUrl = null,
     ) {}
 
     /**

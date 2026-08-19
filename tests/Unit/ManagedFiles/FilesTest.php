@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+
 namespace PHPdot\Filesystem\Tests\Unit\ManagedFiles;
 
 use DateTimeImmutable;
@@ -133,7 +134,7 @@ final class FilesTest extends TestCase
     /**
      * @return array{Files, Filesystem, InMemoryFileRepository}
      */
-    private function files(?FilesystemConfig $config = null): array
+    private function files(null|FilesystemConfig $config = null): array
     {
         $config ??= new FilesystemConfig();
         $factory = new Psr17Factory();

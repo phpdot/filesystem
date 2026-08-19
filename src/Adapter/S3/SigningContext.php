@@ -30,6 +30,6 @@ final readonly class SigningContext
         public string $secretKey,
         public string $region,
         public string $service,
-        public ?string $sessionToken = null,
+        public null|string $sessionToken = null,
     ) {}
 }

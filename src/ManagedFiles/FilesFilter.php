@@ -29,13 +29,13 @@ final readonly class FilesFilter
      * @param ?string $tag
      */
     public function __construct(
-        public ?string $reference = null,
-        public ?string $referenceId = null,
-        public ?bool $isDraft = null,
-        public ?bool $isDeleted = null,
-        public ?DateTimeImmutable $expiryBefore = null,
-        public ?string $mimeType = null,
-        public ?string $tag = null,
+        public null|string $reference = null,
+        public null|string $referenceId = null,
+        public null|bool $isDraft = null,
+        public null|bool $isDeleted = null,
+        public null|DateTimeImmutable $expiryBefore = null,
+        public null|string $mimeType = null,
+        public null|string $tag = null,
     ) {}
 
     /**

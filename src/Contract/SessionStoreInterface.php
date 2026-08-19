@@ -35,7 +35,7 @@ interface SessionStoreInterface
      *
      * @return ?UploadSession
      */
-    public function find(string $id): ?UploadSession;
+    public function find(string $id): null|UploadSession;
 
     /**
      * Delete.

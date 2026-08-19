@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+
 namespace PHPdot\Filesystem\Tests\Unit\ManagedFiles;
 
 use DateTimeImmutable;
@@ -104,7 +105,7 @@ final class LocalFileRepositoryTest extends TestCase
     /**
      * @param list<string> $tags
      */
-    private function record(string $id, ?string $reference = 'post', array $tags = [], Visibility $visibility = Visibility::Public): FileRecord
+    private function record(string $id, null|string $reference = 'post', array $tags = [], Visibility $visibility = Visibility::Public): FileRecord
     {
         return new FileRecord(
             id: $id,

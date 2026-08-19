@@ -175,7 +175,7 @@ final class ManagedResumableUploadHandler implements RequestHandlerInterface
      *
      * @return ?string
      */
-    private function header(ServerRequestInterface $request, string $name): ?string
+    private function header(ServerRequestInterface $request, string $name): null|string
     {
         return $request->hasHeader($name) ? $request->getHeaderLine($name) : null;
     }
@@ -188,7 +188,7 @@ final class ManagedResumableUploadHandler implements RequestHandlerInterface
      *
      * @return ?string
      */
-    private function metadataValue(ServerRequestInterface $request, string $key): ?string
+    private function metadataValue(ServerRequestInterface $request, string $key): null|string
     {
         foreach (explode(',', $request->getHeaderLine('Upload-Metadata')) as $pair) {
             $parts = explode(' ', trim($pair), 2);

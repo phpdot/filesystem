@@ -25,8 +25,8 @@ final readonly class DirectoryAttributes implements StorageAttributes
      */
     public function __construct(
         private string $path,
-        private ?string $visibility = null,
-        private ?int $lastModified = null,
+        private null|string $visibility = null,
+        private null|int $lastModified = null,
         private array $extraMetadata = [],
     ) {}
 
@@ -45,12 +45,12 @@ final readonly class DirectoryAttributes implements StorageAttributes
         return true;
     }
 
-    public function visibility(): ?string
+    public function visibility(): null|string
     {
         return $this->visibility;
     }
 
-    public function lastModified(): ?int
+    public function lastModified(): null|int
     {
         return $this->lastModified;
     }

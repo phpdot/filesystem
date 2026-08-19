@@ -33,7 +33,7 @@ final class ProgressStream implements StreamInterface
     public function __construct(
         private readonly StreamInterface $inner,
         private readonly Closure $onProgress,
-        private readonly ?int $total = null,
+        private readonly null|int $total = null,
     ) {}
 
     public function read(int $length): string
@@ -83,7 +83,7 @@ final class ProgressStream implements StreamInterface
         return $this->inner->detach();
     }
 
-    public function getSize(): ?int
+    public function getSize(): null|int
     {
         return $this->inner->getSize();
     }
@@ -128,7 +128,7 @@ final class ProgressStream implements StreamInterface
         return $this->inner->isReadable();
     }
 
-    public function getMetadata(?string $key = null): mixed
+    public function getMetadata(null|string $key = null): mixed
     {
         return $this->inner->getMetadata($key);
     }

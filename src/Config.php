@@ -86,7 +86,7 @@ final class Config
      *
      * @return ?string
      */
-    public function getNullableString(string $key): ?string
+    public function getNullableString(string $key): null|string
     {
         $value = $this->options[$key] ?? null;
 
@@ -143,7 +143,7 @@ final class Config
      *
      * @return ?Closure
      */
-    public function getCallable(string $key): ?Closure
+    public function getCallable(string $key): null|Closure
     {
         $value = $this->options[$key] ?? null;
 

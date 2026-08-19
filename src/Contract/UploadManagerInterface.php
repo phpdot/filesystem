@@ -31,7 +31,7 @@ interface UploadManagerInterface
      *
      * @return UploadSession
      */
-    public function create(string $path, ?int $totalSize, array $config = []): UploadSession;
+    public function create(string $path, null|int $totalSize, array $config = []): UploadSession;
 
     /**
      * Write chunk.

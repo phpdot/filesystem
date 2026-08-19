@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+
 namespace PHPdot\Filesystem\Tests\Unit\Config;
 
 use Closure;
@@ -56,7 +57,7 @@ final class ConfigTest extends TestCase
     public function testGetCallableNormalizesClosure(): void
     {
         $seen = 0;
-        $config = new Config([Config::PROGRESS => static function (int $soFar, ?int $total) use (&$seen): void {
+        $config = new Config([Config::PROGRESS => static function (int $soFar, null|int $total) use (&$seen): void {
             $seen = $soFar;
         }]);
 
@@ -72,7 +73,7 @@ final class ConfigTest extends TestCase
         $spy = new class {
             public int $seen = 0;
 
-            public function __invoke(int $soFar, ?int $total): void
+            public function __invoke(int $soFar, null|int $total): void
             {
                 $this->seen = $soFar;
             }

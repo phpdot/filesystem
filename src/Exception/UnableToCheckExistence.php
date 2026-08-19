@@ -34,7 +34,7 @@ final class UnableToCheckExistence extends RuntimeException implements Filesyste
      *
      * @return self
      */
-    public static function forLocation(string $path, ?Throwable $previous = null): self
+    public static function forLocation(string $path, null|Throwable $previous = null): self
     {
         return new self("Unable to check existence for: {$path}.", 0, $previous);
     }

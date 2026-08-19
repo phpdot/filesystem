@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+
 namespace PHPdot\Filesystem\Tests\Unit\ManagedFiles;
 
 use DateTimeImmutable;
@@ -24,12 +25,12 @@ final class InMemoryFileRepository implements FileRepositoryInterface
         return $record;
     }
 
-    public function find(string $id): ?FileRecord
+    public function find(string $id): null|FileRecord
     {
         return $this->records[$id] ?? null;
     }
 
-    public function findByPath(string $path): ?FileRecord
+    public function findByPath(string $path): null|FileRecord
     {
         foreach ($this->records as $record) {
             if ($record->path === $path) {

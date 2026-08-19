@@ -21,15 +21,17 @@ is built in, and the server (not the browser) picks where bytes land.
 | PHP | `>= 8.5` |
 | `ext-fileinfo` | `*` |
 | `ext-hash` | `*` |
-| `league/mime-type-detection` | `^1.15` |
+| `league/mime-type-detection` | `^1.16` |
+| `phpdot/console` | `^0.1` |
 | `psr/event-dispatcher` | `^1.0` |
 | `psr/http-client` | `^1.0` |
 | `psr/http-factory` | `^1.0` |
 | `psr/http-message` | `^2.0` |
 | `psr/http-server-handler` | `^1.0` |
+| `symfony/console` | `^8.0` |
 
-Bring any PSR-17/PSR-18 implementation. `phpdot/console` and `phpdot/container` are dev-only suggestions
-(the CLI commands and binding attributes are inert without them).
+Bring any PSR-17/PSR-18 implementation. `phpdot/container` is a dev-only suggestion
+(the binding attributes are inert without it).
 
 ## Installation
 

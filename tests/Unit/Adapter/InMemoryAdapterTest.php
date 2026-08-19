@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+
 namespace PHPdot\Filesystem\Tests\Unit\Adapter;
 
 use Nyholm\Psr7\Factory\Psr17Factory;

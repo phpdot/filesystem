@@ -39,7 +39,7 @@ final class LocalFileRepository implements FileRepositoryInterface
     {
         $this->directory = $config->fileRecordsDirectory;
 
-        if (!is_dir($this->directory) && !@mkdir($this->directory, 0700, true) && !is_dir($this->directory)) {
+        if (!is_dir($this->directory) && !@mkdir($this->directory, 0o700, true) && !is_dir($this->directory)) {
             throw UnableToCreateDirectory::atLocation($this->directory);
         }
     }
@@ -71,12 +71,12 @@ final class LocalFileRepository implements FileRepositoryInterface
         return $record;
     }
 
-    public function find(string $id): ?FileRecord
+    public function find(string $id): null|FileRecord
     {
         return $this->read($this->file($id));
     }
 
-    public function findByPath(string $path): ?FileRecord
+    public function findByPath(string $path): null|FileRecord
     {
         foreach ($this->all() as $record) {
             if ($record->path === $path) {
@@ -146,7 +146,7 @@ final class LocalFileRepository implements FileRepositoryInterface
      *
      * @return ?FileRecord
      */
-    private function read(string $file): ?FileRecord
+    private function read(string $file): null|FileRecord
     {
         if (!is_file($file)) {
             return null;
@@ -255,7 +255,7 @@ final class LocalFileRepository implements FileRepositoryInterface
      *
      * @return ?string
      */
-    private function nullableString(array $data, string $key): ?string
+    private function nullableString(array $data, string $key): null|string
     {
         $value = $data[$key] ?? null;
 
@@ -298,7 +298,7 @@ final class LocalFileRepository implements FileRepositoryInterface
      *
      * @return ?DateTimeImmutable
      */
-    private function timestamp(array $data, string $key): ?DateTimeImmutable
+    private function timestamp(array $data, string $key): null|DateTimeImmutable
     {
         $value = $data[$key] ?? null;
         if (!is_int($value)) {

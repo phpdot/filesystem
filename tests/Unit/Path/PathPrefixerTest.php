@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+
 namespace PHPdot\Filesystem\Tests\Unit\Path;
 
 use PHPdot\Filesystem\Path\PathPrefixer;

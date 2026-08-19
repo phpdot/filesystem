@@ -24,6 +24,6 @@ final readonly class DownloadProgressed
     public function __construct(
         public string $path,
         public int $bytesTransferred,
-        public ?int $total,
+        public null|int $total,
     ) {}
 }

@@ -47,7 +47,7 @@ final class UnableToRetrieveMetadata extends RuntimeException implements Filesys
      *
      * @return self
      */
-    public static function mimeType(string $path, string $reason = '', ?Throwable $previous = null): self
+    public static function mimeType(string $path, string $reason = '', null|Throwable $previous = null): self
     {
         return self::create($path, 'mimeType', $reason, $previous);
     }
@@ -61,7 +61,7 @@ final class UnableToRetrieveMetadata extends RuntimeException implements Filesys
      *
      * @return self
      */
-    public static function lastModified(string $path, string $reason = '', ?Throwable $previous = null): self
+    public static function lastModified(string $path, string $reason = '', null|Throwable $previous = null): self
     {
         return self::create($path, 'lastModified', $reason, $previous);
     }
@@ -75,7 +75,7 @@ final class UnableToRetrieveMetadata extends RuntimeException implements Filesys
      *
      * @return self
      */
-    public static function fileSize(string $path, string $reason = '', ?Throwable $previous = null): self
+    public static function fileSize(string $path, string $reason = '', null|Throwable $previous = null): self
     {
         return self::create($path, 'fileSize', $reason, $previous);
     }
@@ -89,7 +89,7 @@ final class UnableToRetrieveMetadata extends RuntimeException implements Filesys
      *
      * @return self
      */
-    public static function visibility(string $path, string $reason = '', ?Throwable $previous = null): self
+    public static function visibility(string $path, string $reason = '', null|Throwable $previous = null): self
     {
         return self::create($path, 'visibility', $reason, $previous);
     }
@@ -103,7 +103,7 @@ final class UnableToRetrieveMetadata extends RuntimeException implements Filesys
      *
      * @return self
      */
-    public static function checksum(string $path, string $reason = '', ?Throwable $previous = null): self
+    public static function checksum(string $path, string $reason = '', null|Throwable $previous = null): self
     {
         return self::create($path, 'checksum', $reason, $previous);
     }
@@ -118,7 +118,7 @@ final class UnableToRetrieveMetadata extends RuntimeException implements Filesys
      *
      * @return self
      */
-    private static function create(string $path, string $type, string $reason, ?Throwable $previous): self
+    private static function create(string $path, string $type, string $reason, null|Throwable $previous): self
     {
         $message = "Unable to retrieve the {$type} for file at location: {$path}.";
 

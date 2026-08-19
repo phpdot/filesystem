@@ -31,11 +31,11 @@ final readonly class FileContext
      */
     public function __construct(
         public string $originalName,
-        public ?string $reference = null,
-        public ?string $referenceId = null,
+        public null|string $reference = null,
+        public null|string $referenceId = null,
         public array $tags = [],
-        public ?Visibility $visibility = null,
-        public ?string $pathPattern = null,
+        public null|Visibility $visibility = null,
+        public null|string $pathPattern = null,
         public array $validators = [],
     ) {}
 }

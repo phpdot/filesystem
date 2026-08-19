@@ -42,7 +42,7 @@ final class PathGenerator
      *
      * @param ?PathNormalizer $normalizer
      */
-    public function __construct(?PathNormalizer $normalizer = null)
+    public function __construct(null|PathNormalizer $normalizer = null)
     {
         $this->normalizer = $normalizer ?? new WhitespacePathNormalizer();
         $this->tokens = $this->defaultTokens();
@@ -74,7 +74,7 @@ final class PathGenerator
      *
      * @return string
      */
-    public function generate(string $pattern, FileSubject $subject, ?callable $exists = null): string
+    public function generate(string $pattern, FileSubject $subject, null|callable $exists = null): string
     {
         $attempts = $exists === null ? 1 : self::MAX_ATTEMPTS;
 
@@ -132,8 +132,8 @@ final class PathGenerator
             'month' => fn(): string => $this->now()->format('m'),
             'day' => fn(): string => $this->now()->format('d'),
             'uuid' => fn(): string => $this->uuid(),
-            'random' => fn(FileSubject $s, ?string $param): string => $this->random($param === null ? 16 : (int) $param),
-            'hash' => fn(FileSubject $s, ?string $param): string => $this->hashBody($param ?? 'sha256', $s),
+            'random' => fn(FileSubject $s, null|string $param): string => $this->random($param === null ? 16 : (int) $param),
+            'hash' => fn(FileSubject $s, null|string $param): string => $this->hashBody($param ?? 'sha256', $s),
             'ext' => static function (FileSubject $s): string {
                 $ext = pathinfo($s->originalName(), PATHINFO_EXTENSION);
 

@@ -29,7 +29,7 @@ final class MultipartUploadFailed extends RuntimeException implements Filesystem
      *
      * @return self
      */
-    public static function withReason(string $reason, ?Throwable $previous = null): self
+    public static function withReason(string $reason, null|Throwable $previous = null): self
     {
         return new self("Multipart upload failed: {$reason}", 0, $previous);
     }

@@ -61,7 +61,7 @@ final class Xml
      *
      * @return ?string
      */
-    public function parseUploadId(string $body): ?string
+    public function parseUploadId(string $body): null|string
     {
         $doc = $this->load($body);
 
@@ -160,7 +160,7 @@ final class Xml
      *
      * @return ?int
      */
-    private function toTimestamp(string $iso8601): ?int
+    private function toTimestamp(string $iso8601): null|int
     {
         $timestamp = strtotime($iso8601);
 
@@ -174,7 +174,7 @@ final class Xml
      *
      * @return ?DOMDocument
      */
-    private function load(string $body): ?DOMDocument
+    private function load(string $body): null|DOMDocument
     {
         if (trim($body) === '') {
             return null;
@@ -197,7 +197,7 @@ final class Xml
      *
      * @return ?string
      */
-    private function firstText(DOMDocument|DOMElement $node, string $tag): ?string
+    private function firstText(DOMDocument|DOMElement $node, string $tag): null|string
     {
         return $node->getElementsByTagName($tag)->item(0)?->textContent;
     }

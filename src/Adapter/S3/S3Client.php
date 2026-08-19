@@ -63,7 +63,7 @@ final class S3Client
      *
      * @return void
      */
-    public function putObject(string $key, StreamInterface $body, ?int $length, array $headers = []): void
+    public function putObject(string $key, StreamInterface $body, null|int $length, array $headers = []): void
     {
         $request = $this->requests->createRequest('PUT', $this->url($key))->withBody($body);
         $request = $this->applyHeaders($request, $headers);
@@ -438,7 +438,7 @@ final class S3Client
      *
      * @return ?int
      */
-    private function httpDate(string $value): ?int
+    private function httpDate(string $value): null|int
     {
         $timestamp = strtotime($value);
 

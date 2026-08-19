@@ -46,7 +46,7 @@ final class UnableToGenerateTemporaryUrl extends RuntimeException implements Fil
      *
      * @return self
      */
-    public static function dueToError(string $path, ?Throwable $previous = null): self
+    public static function dueToError(string $path, null|Throwable $previous = null): self
     {
         return new self("Unable to generate a temporary URL for {$path}.", 0, $previous);
     }

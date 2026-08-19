@@ -38,7 +38,7 @@ final class LocalSessionStore implements SessionStoreInterface
     {
         $this->directory = $config->sessionDirectory;
 
-        if (!is_dir($this->directory) && !@mkdir($this->directory, 0700, true) && !is_dir($this->directory)) {
+        if (!is_dir($this->directory) && !@mkdir($this->directory, 0o700, true) && !is_dir($this->directory)) {
             throw UnableToCreateDirectory::atLocation($this->directory);
         }
     }
@@ -59,7 +59,7 @@ final class LocalSessionStore implements SessionStoreInterface
         file_put_contents($this->file($session->id), json_encode($data, JSON_THROW_ON_ERROR));
     }
 
-    public function find(string $id): ?UploadSession
+    public function find(string $id): null|UploadSession
     {
         return $this->read($this->file($id));
     }
@@ -91,7 +91,7 @@ final class LocalSessionStore implements SessionStoreInterface
      *
      * @return ?UploadSession
      */
-    private function read(string $file): ?UploadSession
+    private function read(string $file): null|UploadSession
     {
         if (!is_file($file)) {
             return null;

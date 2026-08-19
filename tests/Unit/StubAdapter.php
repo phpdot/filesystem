@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+
 namespace PHPdot\Filesystem\Tests\Unit;
 
 use PHPdot\Filesystem\Adapter\InMemoryAdapter;
@@ -19,7 +20,7 @@ final class StubAdapter implements AdapterInterface
 {
     public function __construct(
         private readonly InMemoryAdapter $inner,
-        private readonly ?Throwable $writeError = null,
+        private readonly null|Throwable $writeError = null,
     ) {}
 
     public function write(string $path, StreamInterface $contents, Config $config): void

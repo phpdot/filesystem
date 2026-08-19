@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+
 namespace PHPdot\Filesystem\Tests\Unit\Validation;
 
 use Nyholm\Psr7\Factory\Psr17Factory;
@@ -155,7 +156,7 @@ final class NonSeekableStream implements StreamInterface
         return null;
     }
 
-    public function getSize(): ?int
+    public function getSize(): null|int
     {
         return null;
     }
@@ -213,7 +214,7 @@ final class NonSeekableStream implements StreamInterface
         return $this->read(PHP_INT_MAX);
     }
 
-    public function getMetadata(?string $key = null)
+    public function getMetadata(null|string $key = null)
     {
         return $key === null ? [] : null;
     }
