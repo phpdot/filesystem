@@ -22,7 +22,7 @@ is built in, and the server (not the browser) picks where bytes land.
 | `ext-fileinfo` | `*` |
 | `ext-hash` | `*` |
 | `league/mime-type-detection` | `^1.16` |
-| `phpdot/console` | `^0.1` |
+| `phpdot/console` | `^0.2` |
 | `psr/event-dispatcher` | `^1.0` |
 | `psr/http-client` | `^1.0` |
 | `psr/http-factory` | `^1.0` |
