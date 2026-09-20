@@ -27,6 +27,7 @@ use Symfony\Component\HttpClient\Psr18Client;
  * PHPDOT_S3_TEST_PATH_STYLE=1 for MinIO).
  */
 #[Group('integration')]
+#[Group('s3')]
 final class S3AdapterTest extends AdapterTestCase
 {
     private string $prefix = '';
