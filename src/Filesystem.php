@@ -27,6 +27,7 @@ use PHPdot\Filesystem\Contract\AdapterInterface;
 use PHPdot\Filesystem\Contract\ChecksumProvider;
 use PHPdot\Filesystem\Contract\FilesystemInterface;
 use PHPdot\Filesystem\Contract\PathNormalizer;
+use PHPdot\Filesystem\Contract\PresignedUploadGenerator;
 use PHPdot\Filesystem\Contract\PublicUrlGenerator;
 use PHPdot\Filesystem\Contract\TemporaryUrlGenerator;
 use PHPdot\Filesystem\Event\UploadCompleted;
@@ -34,9 +35,11 @@ use PHPdot\Filesystem\Event\UploadFailed;
 use PHPdot\Filesystem\Event\UploadProgressed;
 use PHPdot\Filesystem\Exception\UnableToGeneratePublicUrl;
 use PHPdot\Filesystem\Exception\UnableToGenerateTemporaryUrl;
+use PHPdot\Filesystem\Exception\UnableToPresignUpload;
 use PHPdot\Filesystem\Exception\UnableToRetrieveMetadata;
 use PHPdot\Filesystem\Path\WhitespacePathNormalizer;
 use PHPdot\Filesystem\Stream\ProgressStream;
+use PHPdot\Filesystem\Upload\PresignedUpload;
 use PHPdot\Filesystem\Write\WriteContents;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\StreamInterface;
@@ -252,6 +255,58 @@ final class Filesystem implements FilesystemInterface
         return $this->adapter->temporaryUrl($normalized, $expiresAt, new Config($config));
     }
 
+    /**
+     * Grant a direct PUT for one object: a URL the client uploads with, straight
+     * to the bucket, until the expiry. Pinning a content type makes it part of
+     * the signature — the grant names it in its headers, and a client sending
+     * anything else is rejected by the bucket. The grant cannot bound size;
+     * completion is the application\x27s check, against the storage\x27s own truth.
+     *
+     * @param string $path
+     * @param DateTimeInterface $expiresAt
+     * @param null|string $contentType
+     * @param array<string, mixed> $config
+     *
+     * @return PresignedUpload
+     */
+    public function presignedUpload(string $path, DateTimeInterface $expiresAt, null|string $contentType = null, null|string $sha256Base64 = null, array $config = []): PresignedUpload
+    {
+        $normalized = $this->normalizer->normalizePath($path);
+
+        if (!$this->adapter instanceof PresignedUploadGenerator) {
+            throw UnableToPresignUpload::notSupported($normalized);
+        }
+
+        return $this->adapter->presignedUpload($normalized, $expiresAt, $contentType, $sha256Base64, new Config($config));
+    }
+
+    /**
+     * Grant a direct PUT for one part of a multipart upload — the resumable
+     * direct lane. Create the upload (and its session) first, then mint one
+     * grant per part; the client uploads parts straight to the bucket and holds
+     * no ETags, because completion is built from the storage's own part list.
+     * Every part but the last must clear the storage's minimum part size —
+     * 5 MiB on S3 — or completion fails EntityTooSmall.
+     *
+     * @param string $path
+     * @param string $uploadId
+     * @param int $partNumber
+     * @param DateTimeInterface $expiresAt
+     * @param null|string $contentType
+     * @param array<string, mixed> $config
+     *
+     * @return PresignedUpload
+     */
+    public function presignedPartUpload(string $path, string $uploadId, int $partNumber, DateTimeInterface $expiresAt, null|string $contentType = null, null|string $sha256Base64 = null, array $config = []): PresignedUpload
+    {
+        $normalized = $this->normalizer->normalizePath($path);
+
+        if (!$this->adapter instanceof PresignedUploadGenerator) {
+            throw UnableToPresignUpload::notSupported($normalized);
+        }
+
+        return $this->adapter->presignedPartUpload($normalized, $uploadId, $partNumber, $expiresAt, $contentType, $sha256Base64, new Config($config));
+    }
     public function url(string $path, array $config = []): string
     {
         if ($this->supportsPublicUrls() && $this->visibility($path)->isPublic()) {

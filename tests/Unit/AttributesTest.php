@@ -78,7 +78,7 @@ final class AttributesTest extends TestCase
     {
         $config = new FilesystemConfig();
 
-        self::assertSame('storage', $config->root);
+        self::assertSame('{path.base}/storage', $config->root);
         self::assertSame('private', $config->visibility);
         self::assertSame(8388608, $config->chunkSize);
         self::assertSame(86400, $config->sessionTtl);

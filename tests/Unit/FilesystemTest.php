@@ -15,6 +15,7 @@ use PHPdot\Filesystem\Event\UploadProgressed;
 use PHPdot\Filesystem\Exception\PathTraversalDetected;
 use PHPdot\Filesystem\Exception\UnableToGeneratePublicUrl;
 use PHPdot\Filesystem\Exception\UnableToGenerateTemporaryUrl;
+use PHPdot\Filesystem\Exception\UnableToPresignUpload;
 use PHPdot\Filesystem\Exception\UnableToWriteFile;
 use PHPdot\Filesystem\Filesystem;
 use PHPdot\Filesystem\Write\WriteContents;
@@ -22,6 +23,16 @@ use PHPUnit\Framework\TestCase;
 
 final class FilesystemTest extends TestCase
 {
+    public function testPresignedUploadIsRejectedForAdaptersWithoutTheCapability(): void
+    {
+        $fs = new Filesystem(new StubAdapter($this->adapter()), $this->writeContents());
+
+        $this->expectException(UnableToPresignUpload::class);
+        $this->expectExceptionMessage('does not support presigned uploads');
+
+        $fs->presignedUpload('a/b.png', new DateTimeImmutable('+5 minutes'), 'image/png');
+    }
+
     public function testWritesAndReadsStringInput(): void
     {
         $fs = $this->filesystem();

@@ -22,7 +22,7 @@ is built in, and the server (not the browser) picks where bytes land.
 | `ext-fileinfo` | `*` |
 | `ext-hash` | `*` |
 | `league/mime-type-detection` | `^1.16` |
-| `phpdot/console` | `^0.3` |
+| `phpdot/console` | `^0.4` |
 | `psr/event-dispatcher` | `^1.0` |
 | `psr/http-client` | `^1.0` |
 | `psr/http-factory` | `^1.0` |
@@ -40,6 +40,63 @@ composer require phpdot/filesystem
 ```
 
 ## Usage
+
+### Presigned direct uploads (S3 / R2 / MinIO)
+
+Let the client PUT straight to the bucket — PHP only mints the grant:
+
+```php
+$grant = $fs->presignedUpload('avatars/42.png', new DateTimeImmutable('+10 minutes'), 'image/png');
+
+// hand $grant->toArray() to your endpoint; the client then does:
+//   PUT $grant['url']  with headers: $grant['headers'], body: the file
+```
+
+The content type is pinned into the signature when given — a client sending any other
+type is rejected by the bucket (`403 SignatureDoesNotMatch`), so the stored type stays a
+server decision. Pass `null` only when nothing from the bucket is served to a browser.
+The grant cannot bound size; verify on completion against the storage's own truth:
+
+```php
+$fs->fileExists('avatars/42.png') && $fs->fileSize('avatars/42.png') === $expected;
+```
+
+Upload progress moves client-side with this lane — XHR/fetch progress events — while the
+through-PHP lanes (streamed writes, resumable chunks) keep the server-side progress bar.
+
+**Large files (the resumable direct lane)** — one grant per multipart part; a dropped part
+retries alone instead of restarting the upload:
+
+```php
+$session = $manager->create('videos/clip.mp4', $totalBytes);   // server mints uploadId + session
+
+$grant = $fs->presignedPartUpload('videos/clip.mp4', $session->uploadId, $n, new DateTimeImmutable('+10 minutes'), 'video/mp4');
+// client PUTs part $n directly; every part but the last must clear the storage minimum (5 MiB on S3)
+
+$manager->complete($session->id);   // built from the bucket's own part list — the client holds no ETags
+```
+
+The single-PUT 5 GB ceiling does not apply; a presigned part cannot bound its own size any
+more than a whole-object grant can.
+
+**Checksums without downloads (SHA-256).** Every upload path carries the digest as
+`x-amz-checksum-sha256` — server writes hash the stream they hold, grants sign the digest you
+pass (`presignedUpload(..., $sha256Base64)`; the client computes it with SubtleCrypto and the
+server mints the grant around it). S3 verifies the value against the bytes it receives (a lying
+digest is a 400) and stores it, so the object's checksum comes back by HEAD — never by
+downloading the file:
+
+```php
+$fs->checksum('avatars/42.png', 'sha256');   // HeadObject with x-amz-checksum-mode: ENABLED
+```
+
+For multipart, each part's grant carries its own digest and the object's checksum is the
+S3-computed composite. Objects uploaded before this convention have nothing stored and fall
+back to streaming the object once.
+
+**CORS**: the bucket must accept the browser's origin and PUT method (AWS: a CORS
+configuration allowing `PUT` with the `Content-Type` header; R2 and MinIO equivalent).
+
 
 ```php
 use Nyholm\Psr7\Factory\Psr17Factory;

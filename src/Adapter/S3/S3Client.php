@@ -21,6 +21,7 @@ use DateTimeInterface;
 use DateTimeZone;
 use PHPdot\Filesystem\Exception\MultipartUploadFailed;
 use PHPdot\Filesystem\Exception\S3RequestFailed;
+use PHPdot\Filesystem\Upload\PresignedUpload;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
@@ -33,6 +34,18 @@ final class S3Client
 {
     private const EMPTY_PAYLOAD_HASH = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
     private const UNSIGNED_PAYLOAD = 'UNSIGNED-PAYLOAD';
+
+    /**
+     * The checksum header every storage path carries as a VALUE, never a bare
+     * directive: AWS rejects `x-amz-sdk-checksum-algorithm` alone on both
+     * header- and query-signed requests (400 InvalidRequest — MinIO accepts
+     * it, which hides the gap). The digest travels base64; S3 verifies it
+     * against the received bytes and stores it, so the client cannot lie, and
+     * `headObject()` hands it back with no download. Grants sign the header
+     * with a digest the caller supplies; server writes hash the stream they
+     * already hold.
+     */
+    public const string CHECKSUM_HEADER = 'x-amz-checksum-sha256';
 
     /**
      * __construct.
@@ -94,21 +107,24 @@ final class S3Client
      *
      * @param string $key
      *
-     * @return array{size: int, lastModified: ?int, mimeType: ?string, etag: string}
+     * @return array{size: int, lastModified: ?int, mimeType: ?string, etag: string, checksumSha256: ?string}
      */
     public function headObject(string $key): array
     {
-        $request = $this->requests->createRequest('HEAD', $this->url($key));
+        $request = $this->requests->createRequest('HEAD', $this->url($key))
+            ->withHeader('x-amz-checksum-mode', 'ENABLED');
         $response = $this->ensureSuccess($this->send($request, self::EMPTY_PAYLOAD_HASH), 'HeadObject ' . $key);
 
         $lastModified = $response->getHeaderLine('Last-Modified');
         $mimeType = $response->getHeaderLine('Content-Type');
+        $storedChecksum = $response->getHeaderLine('x-amz-checksum-sha256');
 
         return [
             'size' => (int) $response->getHeaderLine('Content-Length'),
             'lastModified' => $lastModified === '' ? null : $this->httpDate($lastModified),
             'mimeType' => $mimeType === '' ? null : $mimeType,
             'etag' => trim($response->getHeaderLine('ETag'), '"'),
+            'checksumSha256' => $storedChecksum === '' ? null : bin2hex((string) base64_decode($storedChecksum, true)),
         ];
     }
 
@@ -300,6 +316,131 @@ final class S3Client
         );
 
         return (string) $uri;
+    }
+
+    /**
+     * Grant a direct PUT: a URL a client can upload one object with, straight
+     * to the bucket, until the expiry. A pinned content type joins the
+     * signature — the returned grant names it in `headers`, and a client that
+     * sends a different type is rejected by the bucket, keeping the stored
+     * object's type a server decision. The URL cannot bound size; that ceiling
+     * is the caller's completion check.
+     *
+     * @param string $key
+     * @param DateTimeInterface $expiresAt
+     * @param null|string $contentType
+     *
+     * @return PresignedUpload
+     */
+    public function presignPut(string $key, DateTimeInterface $expiresAt, null|string $contentType = null, null|string $sha256Base64 = null): PresignedUpload
+    {
+        $now = $this->now();
+        $expiresIn = max(1, $expiresAt->getTimestamp() - $now->getTimestamp());
+
+        $request = $this->requests->createRequest('PUT', $this->url($key));
+        $signed = [];
+
+        if ($sha256Base64 !== null) {
+            $signed['x-amz-checksum-sha256'] = $sha256Base64;
+            $request = $request->withHeader('x-amz-checksum-sha256', $sha256Base64);
+        }
+
+        if ($contentType !== null) {
+            $signed['content-type'] = $contentType;
+            $request = $request->withHeader('Content-Type', $contentType);
+        }
+
+        $uri = $this->signer->presign($request, $this->config->signingContext(), $now, $expiresIn, $signed);
+
+        $headers = [];
+        foreach ($signed as $name => $value) {
+            $headers[ucwords($name, '-')] = $value;
+        }
+
+        return new PresignedUpload((string) $uri, 'PUT', $key, DateTimeImmutable::createFromInterface($expiresAt), $headers);
+    }
+
+    /**
+     * Grant a direct PUT for one part of a multipart upload — the resumable
+     * form of a presigned grant. `partNumber` and `uploadId` are signed into
+     * the canonical query, so each part is its own grant; the S3 5 GB
+     * single-PUT ceiling and the start-from-zero failure mode both fall away.
+     * The client never holds ETags: completion is built from the bucket's own
+     * `listParts`, so the client remains untrusted.
+     *
+     * @param string $key
+     * @param string $uploadId
+     * @param int $partNumber 1-based, ascending; every part but the last must clear the storage's minimum part size
+     * @param DateTimeInterface $expiresAt
+     * @param null|string $contentType
+     *
+     * @return PresignedUpload
+     */
+    public function presignPartPut(string $key, string $uploadId, int $partNumber, DateTimeInterface $expiresAt, null|string $contentType = null, null|string $sha256Base64 = null): PresignedUpload
+    {
+        $now = $this->now();
+        $expiresIn = max(1, $expiresAt->getTimestamp() - $now->getTimestamp());
+
+        $query = 'partNumber=' . $partNumber . '&uploadId=' . rawurlencode($uploadId);
+        $request = $this->requests->createRequest('PUT', $this->url($key, $query));
+        $signed = [];
+
+        if ($sha256Base64 !== null) {
+            $signed['x-amz-checksum-sha256'] = $sha256Base64;
+            $request = $request->withHeader('x-amz-checksum-sha256', $sha256Base64);
+        }
+
+        if ($contentType !== null) {
+            $signed['content-type'] = $contentType;
+            $request = $request->withHeader('Content-Type', $contentType);
+        }
+
+        $uri = $this->signer->presign($request, $this->config->signingContext(), $now, $expiresIn, $signed);
+
+        $headers = [];
+        foreach ($signed as $name => $value) {
+            $headers[ucwords($name, '-')] = $value;
+        }
+
+        return new PresignedUpload((string) $uri, 'PUT', $key, DateTimeImmutable::createFromInterface($expiresAt), $headers, $partNumber, $uploadId);
+    }
+
+    /**
+     * The parts the bucket itself holds for a multipart upload — the server-side
+     * truth a completion should be built from, so a client's claim of what it
+     * uploaded is never trusted. Paginated; every page is followed.
+     *
+     * @param string $key
+     * @param string $uploadId
+     *
+     * @return array<int, array{etag: string, size: int}> partNumber => etag/size
+     */
+    public function listParts(string $key, string $uploadId): array
+    {
+        $parts = [];
+        $marker = null;
+
+        do {
+            $query = 'uploadId=' . rawurlencode($uploadId);
+
+            if ($marker !== null) {
+                $query .= '&part-number-marker=' . $marker;
+            }
+
+            $request = $this->requests->createRequest('GET', $this->url($key, $query));
+            $response = $this->ensureSuccess($this->send($request, self::EMPTY_PAYLOAD_HASH), 'ListParts ' . $key);
+            $page = $this->xml->parseListParts((string) $response->getBody());
+
+            foreach ($page['parts'] as $part) {
+                $parts[$part['number']] = ['etag' => $part['etag'], 'size' => $part['size']];
+            }
+
+            $marker = $page['nextMarker'];
+        } while ($page['truncated'] && $marker !== null);
+
+        ksort($parts);
+
+        return $parts;
     }
 
     /**

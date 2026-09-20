@@ -7,6 +7,7 @@ namespace PHPdot\Filesystem\Tests\Unit\Adapter\S3;
 use DateTimeImmutable;
 use DateTimeZone;
 use Nyholm\Psr7\Factory\Psr17Factory;
+use PHPdot\Filesystem\Adapter\S3\S3Adapter;
 use PHPdot\Filesystem\Adapter\S3\S3Client;
 use PHPdot\Filesystem\Adapter\S3\S3Config;
 use PHPdot\Filesystem\Adapter\S3\SignatureV4;
@@ -130,6 +131,186 @@ final class S3ClientTest extends TestCase
         self::assertSame([], $this->http->requests);
     }
 
+    public function testPresignPutGrantsOnePutWithHostOnlySignature(): void
+    {
+        $grant = $this->client()->presignPut('a/b.txt', new DateTimeImmutable('+10 minutes'));
+
+        self::assertSame('PUT', $grant->method);
+        self::assertSame('a/b.txt', $grant->key);
+        self::assertSame([], $grant->headers, 'no digest, no content type — nothing to send verbatim');
+
+        parse_str(parse_url($grant->url, PHP_URL_QUERY), $params);
+        self::assertSame('host', $params['X-Amz-SignedHeaders']);
+        self::assertSame('600', $params['X-Amz-Expires']);
+        self::assertArrayHasKey('X-Amz-Signature', $params);
+    }
+
+    public function testAGrantSignsTheDigestValueWhenGiven(): void
+    {
+        $digest = base64_encode(hash('sha256', 'bytes', true));
+        $grant = $this->client()->presignPut('a.bin', new DateTimeImmutable('+5 minutes'), null, $digest);
+
+        self::assertSame(['X-Amz-Checksum-Sha256' => $digest], $grant->headers, 'the client sends the digest verbatim; S3 verifies it against the bytes and stores it');
+
+        parse_str(parse_url($grant->url, PHP_URL_QUERY), $params);
+        self::assertSame('host;x-amz-checksum-sha256', $params['X-Amz-SignedHeaders']);
+    }
+
+    public function testAPartGrantSignsItsOwnPartDigest(): void
+    {
+        $digest = base64_encode(hash('sha256', 'part-bytes', true));
+        $grant = $this->client()->presignPartPut('a.bin', 'u1', 1, new DateTimeImmutable('+5 minutes'), null, $digest);
+
+        self::assertSame(['X-Amz-Checksum-Sha256' => $digest], $grant->headers);
+
+        parse_str(parse_url($grant->url, PHP_URL_QUERY), $params);
+        self::assertSame('host;x-amz-checksum-sha256', $params['X-Amz-SignedHeaders']);
+    }
+
+    public function testPresignPutPinsContentTypeIntoTheSignature(): void
+    {
+        $grant = $this->client()->presignPut('a/b.txt', new DateTimeImmutable('+10 minutes'), 'image/png');
+
+        self::assertSame(['Content-Type' => 'image/png'], $grant->headers, 'the grant names what the client must send verbatim');
+
+        parse_str(parse_url($grant->url, PHP_URL_QUERY), $params);
+        self::assertSame('content-type;host', $params['X-Amz-SignedHeaders'], 'signed headers sort alphabetically');
+    }
+
+    public function testPresignPutSignatureDiffersPerContentType(): void
+    {
+        $expires = new DateTimeImmutable('+10 minutes');
+        $png = $this->client()->presignPut('a/b.txt', $expires, 'image/png');
+        $html = $this->client()->presignPut('a/b.txt', $expires, 'text/html');
+
+        self::assertNotSame(
+            parse_url($png->url, PHP_URL_QUERY),
+            parse_url($html->url, PHP_URL_QUERY),
+            'the content type is part of the signature — a swapped type is rejected by the bucket',
+        );
+    }
+
+    public function testListPartsFollowsPaginationAndReturnsTheBucketsOwnParts(): void
+    {
+        $this->http->responses[] = $this->response(200, $this->listPartsXml(true, null, '"etag-1"', '"etag-2"'));
+        $this->http->responses[] = $this->response(200, $this->listPartsXml(false, 2, '"etag-3"'));
+
+        $parts = $this->client()->listParts('a/b.bin', 'upload-1');
+
+        self::assertSame([
+            1 => ['etag' => '"etag-1"', 'size' => 8],
+            2 => ['etag' => '"etag-2"', 'size' => 8],
+            3 => ['etag' => '"etag-3"', 'size' => 4],
+        ], $parts);
+
+        $second = $this->http->requests[1]->getUri();
+        self::assertStringContainsString('part-number-marker=2', $second->getQuery(), 'page two continues after the marker');
+    }
+
+    public function testPresignedPartGrantSignsPartNumberAndUploadId(): void
+    {
+        $grant = $this->client()->presignPartPut('a/big.bin', 'upload-xyz', 2, new DateTimeImmutable('+10 minutes'));
+
+        self::assertSame(2, $grant->partNumber);
+        self::assertSame('upload-xyz', $grant->uploadId);
+
+        $query = parse_url($grant->url, PHP_URL_QUERY);
+        self::assertStringContainsString('partNumber=2', $query);
+        self::assertStringContainsString('uploadId=upload-xyz', $query);
+
+        parse_str($query, $params);
+        self::assertSame('host', $params['X-Amz-SignedHeaders']);
+        self::assertArrayHasKey('X-Amz-Signature', $params);
+    }
+
+    public function testPartGrantsDifferPerPartNumber(): void
+    {
+        $expires = new DateTimeImmutable('+10 minutes');
+        $one = $this->client()->presignPartPut('a/big.bin', 'upload-xyz', 1, $expires);
+        $two = $this->client()->presignPartPut('a/big.bin', 'upload-xyz', 2, $expires);
+
+        self::assertNotSame(
+            parse_url($one->url, PHP_URL_QUERY),
+            parse_url($two->url, PHP_URL_QUERY),
+            'partNumber is inside the canonical query — each part is its own signature',
+        );
+    }
+
+    public function testPartGrantPinsContentTypeLikeAWholeObjectGrant(): void
+    {
+        $grant = $this->client()->presignPartPut('a/big.bin', 'upload-xyz', 1, new DateTimeImmutable('+10 minutes'), 'video/mp4');
+
+        self::assertSame(['Content-Type' => 'video/mp4'], $grant->headers);
+
+        parse_str(parse_url($grant->url, PHP_URL_QUERY), $params);
+        self::assertSame('content-type;host', $params['X-Amz-SignedHeaders']);
+    }
+
+    public function testPartGrantToArrayCarriesThePartIdentity(): void
+    {
+        $grant = $this->client()->presignPartPut('a/big.bin', 'upload-xyz', 3, new DateTimeImmutable('+10 minutes'));
+        $shape = $grant->toArray();
+
+        self::assertSame(3, $shape['partNumber']);
+        self::assertSame('upload-xyz', $shape['uploadId']);
+        self::assertArrayNotHasKey('partNumber', $this->client()->presignPut('a.txt', new DateTimeImmutable('+1 minute'))->toArray(), 'whole-object grants carry no part identity');
+    }
+
+    public function testPutObjectDoesNotSendTheBareChecksumDirective(): void
+    {
+        $this->http->responses[] = $this->response(200);
+
+        $this->client()->putObject('a.txt', $this->factory->createStream('x'), 1);
+
+        self::assertSame('', $this->http->requests[0]->getHeaderLine('x-amz-sdk-checksum-algorithm'), 'AWS 400s on the bare directive with header auth; grants only');
+    }
+
+
+
+    public function testHeadObjectReturnsTheStoredChecksumAsHex(): void
+    {
+        $digest = hash('sha256', 'payload', true);
+        $this->http->responses[] = $this->response(200, '', [
+            'Content-Length' => '7',
+            'x-amz-checksum-sha256' => base64_encode($digest),
+        ]);
+
+        $head = $this->client()->headObject('a.txt');
+
+        self::assertSame(hash('sha256', 'payload'), $head['checksumSha256'], 'base64 from the bucket becomes the same hex hash_file would produce');
+        self::assertSame('ENABLED', $this->http->requests[0]->getHeaderLine('x-amz-checksum-mode'));
+    }
+
+    public function testHeadObjectLeavesChecksumNullWhenStorageHasNone(): void
+    {
+        $this->http->responses[] = $this->response(200, '', ['Content-Length' => '7']);
+
+        $head = $this->client()->headObject('a.txt');
+
+        self::assertNull($head['checksumSha256'], 'an object uploaded before the checksum directive has none stored');
+    }
+
+    public function testChecksumUsesTheStoredDigestWithoutDownloading(): void
+    {
+        $stored = hash('sha256', 'the-object-bytes', true);
+        $this->http->responses[] = $this->response(200, '', ['x-amz-checksum-sha256' => base64_encode($stored)]);
+
+        $adapter = new S3Adapter($this->client(), new S3Config(bucket: 'b', region: 'r', key: 'k', secret: 's'));
+
+        self::assertSame(hash('sha256', 'the-object-bytes'), $adapter->checksum('a.txt', 'sha256'));
+        self::assertSame('HEAD', $this->http->requests[0]->getMethod(), 'no GET — the object never crosses the wire');
+    }
+
+    public function testChecksumFallsBackToStreamingWhenNothingIsStored(): void
+    {
+        $this->http->responses[] = $this->response(200, '', []);
+        $this->http->responses[] = $this->response(200, 'legacy-bytes');
+
+        $adapter = new S3Adapter($this->client(), new S3Config(bucket: 'b', region: 'r', key: 'k', secret: 's'));
+
+        self::assertSame(hash('sha256', 'legacy-bytes'), $adapter->checksum('a.txt', 'sha256'), 'objects uploaded before the directive still checksum correctly, by download');
+    }
+
     private function client(null|S3Config $config = null): S3Client
     {
         return new S3Client(
@@ -152,6 +333,25 @@ final class S3ClientTest extends TestCase
         }
 
         return $response;
+    }
+
+    private function listPartsXml(bool $truncated, null|int $marker, string ...$etags): string
+    {
+        $parts = '';
+        $number = $marker ?? 0;
+
+        foreach ($etags as $etag) {
+            ++$number;
+            $parts .= "<Part><PartNumber>{$number}</PartNumber><ETag>{$etag}</ETag><Size>" . ($number === 3 ? 4 : 8) . '</Size></Part>';
+        }
+
+        $markerXml = $truncated ? "<NextPartNumberMarker>{$number}</NextPartNumberMarker>" : '';
+
+        return '<?xml version="1.0" encoding="UTF-8"?>'
+            . '<ListPartsResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
+            . '<IsTruncated>' . ($truncated ? 'true' : 'false') . '</IsTruncated>' . $markerXml
+            . $parts
+            . '</ListPartsResult>';
     }
 
     private function listXml(string $key, bool $truncated, null|string $token): string

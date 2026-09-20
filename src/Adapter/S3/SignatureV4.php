@@ -77,16 +77,19 @@ final class SignatureV4
 
     /**
      * Presign a request, returning a URI carrying the X-Amz-* query parameters
-     * (host-only signed headers, UNSIGNED-PAYLOAD).
+     * (UNSIGNED-PAYLOAD). Host is always signed; $signedHeaders pins further
+     * headers — content-type, typically — into the signature, so the recipient
+     * of the URL must send them verbatim or the request is rejected.
      *
      * @param int $expiresInSeconds
      * @param RequestInterface $request
      * @param SigningContext $context
      * @param DateTimeImmutable $now
+     * @param array<string,string> $signedHeaders Lowercased header name => value, signed alongside host
      *
      * @return UriInterface
      */
-    public function presign(RequestInterface $request, SigningContext $context, DateTimeImmutable $now, int $expiresInSeconds): UriInterface
+    public function presign(RequestInterface $request, SigningContext $context, DateTimeImmutable $now, int $expiresInSeconds, array $signedHeaders = []): UriInterface
     {
         $amzDate = $now->format('Ymd\THis\Z');
         $dateStamp = $now->format('Ymd');
@@ -98,7 +101,9 @@ final class SignatureV4
         $params['X-Amz-Credential'] = $context->accessKey . '/' . $scope;
         $params['X-Amz-Date'] = $amzDate;
         $params['X-Amz-Expires'] = (string) $expiresInSeconds;
-        $params['X-Amz-SignedHeaders'] = 'host';
+        $headerNames = array_merge(['host'], array_keys($signedHeaders));
+        sort($headerNames);
+        $params['X-Amz-SignedHeaders'] = implode(';', $headerNames);
 
         if ($context->sessionToken !== null) {
             $params['X-Amz-Security-Token'] = $context->sessionToken;
@@ -106,12 +111,18 @@ final class SignatureV4
 
         $canonicalQuery = $this->encodeQueryParams($params);
 
+        $canonicalHeaderLines = '';
+        foreach ($headerNames as $name) {
+            $value = $name === 'host' ? $this->hostHeader($uri) : trim($signedHeaders[$name]);
+            $canonicalHeaderLines .= $name . ':' . $value . "\n";
+        }
+
         $canonicalRequest = implode("\n", [
             $request->getMethod(),
             $this->canonicalUri($uri),
             $canonicalQuery,
-            'host:' . $this->hostHeader($uri) . "\n",
-            'host',
+            $canonicalHeaderLines,
+            implode(';', $headerNames),
             self::UNSIGNED_PAYLOAD,
         ]);
 

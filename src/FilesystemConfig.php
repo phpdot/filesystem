@@ -40,17 +40,17 @@ final readonly class FilesystemConfig
      * @param string $fileRecordsDirectory
      */
     public function __construct(
-        public string $root = 'storage',
+        public string $root = '{path.base}/storage',
         public null|string $publicUrl = null,
         public string $visibility = 'private',
         public int $chunkSize = 8388608,
         public int $sessionTtl = 86400,
-        public string $sessionDirectory = 'storage/.uploads',
+        public string $sessionDirectory = '{path.base}/storage/.uploads',
         public int $temporaryUrlTtl = 3600,
         public string $defaultPathPattern = '{date}/{uuid}{ext}',
         public int $draftTtl = 86400,
         public int $softDeleteRetention = 2592000,
         public string $quarantinePrefix = '.quarantine',
-        public string $fileRecordsDirectory = 'storage/.files',
+        public string $fileRecordsDirectory = '{path.base}/storage/.files',
     ) {}
 }

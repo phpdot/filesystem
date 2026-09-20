@@ -26,6 +26,7 @@ use PHPdot\Filesystem\Config;
 use PHPdot\Filesystem\Contract\AdapterInterface;
 use PHPdot\Filesystem\Contract\ChecksumProvider;
 use PHPdot\Filesystem\Contract\MultipartCapable;
+use PHPdot\Filesystem\Contract\PresignedUploadGenerator;
 use PHPdot\Filesystem\Contract\PublicUrlGenerator;
 use PHPdot\Filesystem\Contract\TemporaryUrlGenerator;
 use PHPdot\Filesystem\Exception\S3RequestFailed;
@@ -36,9 +37,10 @@ use PHPdot\Filesystem\Exception\UnableToMoveFile;
 use PHPdot\Filesystem\Exception\UnableToReadFile;
 use PHPdot\Filesystem\Exception\UnableToRetrieveMetadata;
 use PHPdot\Filesystem\Path\PathPrefixer;
+use PHPdot\Filesystem\Upload\PresignedUpload;
 use Psr\Http\Message\StreamInterface;
 
-final class S3Adapter implements AdapterInterface, ChecksumProvider, MultipartCapable, PublicUrlGenerator, TemporaryUrlGenerator
+final class S3Adapter implements AdapterInterface, ChecksumProvider, MultipartCapable, PresignedUploadGenerator, PublicUrlGenerator, TemporaryUrlGenerator
 {
     private const HASH_BUFFER = 1048576;
 
@@ -93,7 +95,43 @@ final class S3Adapter implements AdapterInterface, ChecksumProvider, MultipartCa
             $headers['Content-Type'] = $mimeType;
         }
 
+        $headers['x-amz-checksum-sha256'] = $this->sha256Of($contents);
+
         $this->client->putObject($this->prefixer->prefixPath($path), $contents, $contents->getSize(), $headers);
+    }
+
+    /**
+     * The base64 SHA-256 of a seekable stream, leaving it rewound for the
+     * upload that follows — the value S3 verifies against the bytes it
+     * receives and stores, so `checksum()` never downloads the object back.
+     *
+     * @param StreamInterface $contents A seekable stream (WriteContents rewinds before we see it)
+     *
+     * @return string
+     */
+    private function sha256Of(StreamInterface $contents): string
+    {
+        $context = hash_init('sha256');
+
+        if ($contents->isSeekable()) {
+            $contents->rewind();
+        }
+
+        while (!$contents->eof()) {
+            $chunk = $contents->read(8192);
+
+            if ($chunk === '') {
+                break;
+            }
+
+            hash_update($context, $chunk);
+        }
+
+        if ($contents->isSeekable()) {
+            $contents->rewind();
+        }
+
+        return base64_encode(hash_final($context, true));
     }
 
     public function read(string $path): string
@@ -202,6 +240,18 @@ final class S3Adapter implements AdapterInterface, ChecksumProvider, MultipartCa
 
     public function checksum(string $path, string $algo): string
     {
+        if ($algo === 'sha256') {
+            try {
+                $head = $this->client->headObject($this->prefixer->prefixPath($path));
+            } catch (S3RequestFailed $exception) {
+                throw UnableToRetrieveMetadata::checksum($path, $exception->getMessage(), $exception);
+            }
+
+            if (is_string($head['checksumSha256'] ?? null)) {
+                return $head['checksumSha256'];
+            }
+        }
+
         try {
             $stream = $this->client->getObject($this->prefixer->prefixPath($path));
         } catch (S3RequestFailed $exception) {
@@ -234,6 +284,21 @@ final class S3Adapter implements AdapterInterface, ChecksumProvider, MultipartCa
     public function temporaryUrl(string $path, DateTimeInterface $expiresAt, Config $config): string
     {
         return $this->client->presign($this->prefixer->prefixPath($path), $expiresAt);
+    }
+
+    public function presignedUpload(string $path, DateTimeInterface $expiresAt, null|string $contentType, null|string $sha256Base64, Config $config): PresignedUpload
+    {
+        return $this->client->presignPut($this->prefixer->prefixPath($path), $expiresAt, $contentType, $sha256Base64);
+    }
+
+    public function presignedPartUpload(string $path, string $uploadId, int $partNumber, DateTimeInterface $expiresAt, null|string $contentType, null|string $sha256Base64, Config $config): PresignedUpload
+    {
+        return $this->client->presignPartPut($this->prefixer->prefixPath($path), $uploadId, $partNumber, $expiresAt, $contentType, $sha256Base64);
+    }
+
+    public function listParts(string $path, string $uploadId): array
+    {
+        return $this->client->listParts($this->prefixer->prefixPath($path), $uploadId);
     }
 
     public function createMultipart(string $path, Config $config): string

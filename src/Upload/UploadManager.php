@@ -95,11 +95,27 @@ final class UploadManager implements UploadManagerInterface
     {
         $session = $this->requireSession($sessionId);
 
-        if ($session->parts === []) {
+        $parts = $this->multipart()->listParts($session->path, $session->uploadId);
+
+        if ($parts === []) {
             throw MultipartUploadFailed::withReason('Cannot complete an upload with no parts.');
         }
 
-        $this->multipart()->completeMultipart($session->path, $session->uploadId, $session->parts);
+        $bytesOnStorage = array_sum(array_map(static fn(array $part): int => $part['size'], $parts));
+
+        if ($session->totalSize !== null && $bytesOnStorage < $session->totalSize) {
+            throw MultipartUploadFailed::withReason(sprintf(
+                'Upload incomplete: received %d of %d declared bytes.',
+                $bytesOnStorage,
+                $session->totalSize,
+            ));
+        }
+
+        $this->multipart()->completeMultipart(
+            $session->path,
+            $session->uploadId,
+            array_map(static fn(array $part): string => $part['etag'], $parts),
+        );
         $this->store->delete($sessionId);
     }
 

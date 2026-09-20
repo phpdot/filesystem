@@ -57,6 +57,18 @@ interface MultipartCapable
     public function completeMultipart(string $path, string $uploadId, array $parts): void;
 
     /**
+     * The parts the storage itself holds for this upload — the server-side
+     * truth a completion should be built from, so what a client claims it
+     * uploaded is never trusted, merely checked against this.
+     *
+     * @param string $path
+     * @param string $uploadId
+     *
+     * @return array<int, array{etag: string, size: int}> partNumber => etag/size
+     */
+    public function listParts(string $path, string $uploadId): array;
+
+    /**
      * Abort multipart.
      *
      * @param string $path

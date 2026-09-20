@@ -7,6 +7,7 @@ namespace PHPdot\Filesystem\Tests\Unit\Upload;
 use FilesystemIterator;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPdot\Filesystem\Adapter\LocalAdapter;
+use PHPdot\Filesystem\Exception\MultipartUploadFailed;
 use PHPdot\Filesystem\Exception\UploadOffsetMismatch;
 use PHPdot\Filesystem\Exception\UploadSessionNotFound;
 use PHPdot\Filesystem\FilesystemConfig;
@@ -58,6 +59,44 @@ final class UploadManagerLocalTest extends TestCase
         $this->manager->complete($session->id);
 
         self::assertSame('AAAABBBB', $this->adapter->read('uploads/big.bin'));
+    }
+
+    public function testCompleteRefusesAnIncompleteDeclaredUpload(): void
+    {
+        $session = $this->manager->create('short.bin', 8);
+        $this->manager->writeChunk($session->id, 0, $this->stream('AAAA'), 4);
+
+        $this->expectException(MultipartUploadFailed::class);
+        $this->expectExceptionMessage('received 4 of 8 declared bytes');
+
+        $this->manager->complete($session->id);
+    }
+
+    public function testCompleteBuildsFromTheStoragesOwnPartListNotTheSessions(): void
+    {
+        $session = $this->manager->create('truth.bin', 8);
+        $this->manager->writeChunk($session->id, 0, $this->stream('AAAA'), 4);
+        $this->manager->writeChunk($session->id, 4, $this->stream('BBBB'), 4);
+
+        $partPath = $this->root . '/truth.bin.phpdot-mpu-' . $session->uploadId . '.1.part';
+        unlink($partPath);
+
+        $this->expectException(MultipartUploadFailed::class);
+        $this->expectExceptionMessage('no parts');
+
+        $this->manager->complete($session->id);
+    }
+
+    public function testCompleteMeasuresTheStoragesTruthNotSessionBookkeeping(): void
+    {
+        $session = $this->manager->create('direct.bin', 8);
+
+        $partPath = $this->root . '/direct.bin.phpdot-mpu-' . $session->uploadId . '.1.part';
+        file_put_contents($partPath, 'AAAABBBB');
+
+        $this->manager->complete($session->id);
+
+        self::assertSame('AAAABBBB', $this->adapter->read('direct.bin'), 'a client-uploaded part completes regardless of the session byte count');
     }
 
     public function testStatusReflectsProgressAndSupportsResume(): void

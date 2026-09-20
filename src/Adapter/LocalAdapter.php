@@ -376,6 +376,20 @@ final class LocalAdapter implements AdapterInterface, ChecksumProvider, Multipar
         return (string) $partNumber;
     }
 
+    public function listParts(string $path, string $uploadId): array
+    {
+        $parts = [];
+        $number = 1;
+
+        while (is_file($this->partFile($path, $uploadId, $number))) {
+            $size = filesize($this->partFile($path, $uploadId, $number));
+            $parts[$number] = ['etag' => (string) $number, 'size' => $size === false ? 0 : $size];
+            ++$number;
+        }
+
+        return $parts;
+    }
+
     public function completeMultipart(string $path, string $uploadId, array $parts): void
     {
         $location = $this->prefixer->prefixPath($path);

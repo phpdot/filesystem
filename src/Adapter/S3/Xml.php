@@ -121,6 +121,40 @@ final class Xml
     }
 
     /**
+     * Parse a ListParts response: the parts the bucket itself holds.
+     *
+     * @param string $body The ListPartsResult XML
+     *
+     * @return array{parts: list<array{number: int, etag: string, size: int}>, truncated: bool, nextMarker: null|int}
+     */
+    public function parseListParts(string $body): array
+    {
+        $document = $this->load($body);
+
+        if ($document === null) {
+            return ['parts' => [], 'truncated' => false, 'nextMarker' => null];
+        }
+
+        $parts = [];
+        foreach ($document->getElementsByTagName('Part') as $part) {
+            $number = $this->firstText($part, 'PartNumber');
+            $etag = $this->firstText($part, 'ETag');
+            $size = $this->firstText($part, 'Size');
+
+            if ($number === null || $etag === null || $size === null) {
+                continue;
+            }
+
+            $parts[] = ['number' => (int) $number, 'etag' => $etag, 'size' => (int) $size];
+        }
+
+        $truncated = $this->firstText($document, 'IsTruncated') === 'true';
+        $marker = $this->firstText($document, 'NextPartNumberMarker');
+
+        return ['parts' => $parts, 'truncated' => $truncated, 'nextMarker' => $marker === null ? null : (int) $marker];
+    }
+
+    /**
      * Build the CompleteMultipartUpload XML request body.
      *
      * @param array<int,string> $parts partNumber => ETag (any order)
