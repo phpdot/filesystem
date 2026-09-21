@@ -47,8 +47,10 @@ interface MultipartCapable
 
     /**
      * Finalize the upload from the retained part identities (ascending order).
+     * Parts carrying a checksum are handed to the storage so it can store an
+     * object-level checksum; ETag-only parts complete as before.
      *
-     * @param array<int,string> $parts partNumber => ETag/marker
+     * @param array<int,string|array{etag: string, checksumSha256?: null|string, checksumCrc64?: null|string}> $parts partNumber => ETag/marker, or the part with its checksum
      * @param string $path
      * @param string $uploadId
      *
@@ -64,7 +66,7 @@ interface MultipartCapable
      * @param string $path
      * @param string $uploadId
      *
-     * @return array<int, array{etag: string, size: int}> partNumber => etag/size
+     * @return array<int, array{etag: string, size: int, checksumSha256: null|string, checksumCrc64: null|string}> partNumber => etag/size/checksums
      */
     public function listParts(string $path, string $uploadId): array;
 

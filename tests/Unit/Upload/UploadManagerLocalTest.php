@@ -10,6 +10,7 @@ use PHPdot\Filesystem\Adapter\LocalAdapter;
 use PHPdot\Filesystem\Exception\MultipartUploadFailed;
 use PHPdot\Filesystem\Exception\UploadOffsetMismatch;
 use PHPdot\Filesystem\Exception\UploadSessionNotFound;
+use PHPdot\Filesystem\Exception\UploadSizeMismatch;
 use PHPdot\Filesystem\FilesystemConfig;
 use PHPdot\Filesystem\Upload\Store\LocalSessionStore;
 use PHPdot\Filesystem\Upload\UploadManager;
@@ -66,10 +67,32 @@ final class UploadManagerLocalTest extends TestCase
         $session = $this->manager->create('short.bin', 8);
         $this->manager->writeChunk($session->id, 0, $this->stream('AAAA'), 4);
 
-        $this->expectException(MultipartUploadFailed::class);
-        $this->expectExceptionMessage('received 4 of 8 declared bytes');
+        try {
+            $this->manager->complete($session->id);
+            self::fail('an incomplete upload must not complete');
+        } catch (UploadSizeMismatch $mismatch) {
+            self::assertSame(8, $mismatch->declaredBytes());
+            self::assertSame(4, $mismatch->receivedBytes());
+        }
+    }
 
-        $this->manager->complete($session->id);
+    public function testCompleteAbortsWhenStorageHoldsMoreThanDeclared(): void
+    {
+        $session = $this->manager->create('over.bin', 4);
+        $this->manager->writeChunk($session->id, 0, $this->stream('AAAA'), 4);
+        $this->manager->writeChunk($session->id, 4, $this->stream('BBBB'), 4);
+
+        try {
+            $this->manager->complete($session->id);
+            self::fail('an over-sized upload must not complete');
+        } catch (UploadSizeMismatch $mismatch) {
+            self::assertSame(4, $mismatch->declaredBytes());
+            self::assertSame(8, $mismatch->receivedBytes());
+        }
+
+        self::assertFalse($this->adapter->fileExists('over.bin'));
+        $this->expectException(UploadSessionNotFound::class);
+        $this->manager->status($session->id);
     }
 
     public function testCompleteBuildsFromTheStoragesOwnPartListNotTheSessions(): void

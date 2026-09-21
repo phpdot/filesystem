@@ -23,4 +23,16 @@ interface ChecksumProvider
      * @return string
      */
     public function checksum(string $path, string $algo): string;
+
+    /**
+     * The fingerprint the storage itself holds for the object, prefixed with
+     * its algorithm ("sha256:<hex>", "crc64nvme:<base64>"), read from metadata
+     * alone — never by reading the bytes. Null when nothing is stored; an
+     * adapter whose storage keeps no fingerprint answers null always.
+     *
+     * @param string $path
+     *
+     * @return null|string
+     */
+    public function storedChecksum(string $path): null|string;
 }

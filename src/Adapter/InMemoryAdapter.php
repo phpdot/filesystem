@@ -216,6 +216,11 @@ final class InMemoryAdapter implements AdapterInterface, ChecksumProvider
         return hash($algo, $file['contents']);
     }
 
+    public function storedChecksum(string $path): null|string
+    {
+        return null;
+    }
+
     /**
      * Return the storage attributes for a stored path.
      *

@@ -11,6 +11,8 @@ use PHPdot\Filesystem\Adapter\S3\S3Adapter;
 use PHPdot\Filesystem\Adapter\S3\S3Client;
 use PHPdot\Filesystem\Adapter\S3\S3Config;
 use PHPdot\Filesystem\Adapter\S3\SignatureV4;
+use PHPdot\Filesystem\Config;
+use PHPdot\Filesystem\Exception\InvalidConfigurationValue;
 use PHPdot\Filesystem\Exception\MultipartUploadFailed;
 use PHPdot\Filesystem\Exception\S3RequestFailed;
 use PHPUnit\Framework\TestCase;
@@ -190,6 +192,133 @@ final class S3ClientTest extends TestCase
         );
     }
 
+    public function testPresignPutPinsDeclaredSizeIntoTheSignature(): void
+    {
+        $expires = new DateTimeImmutable('+10 minutes');
+        $grant = $this->client()->presignPut('a/b.txt', $expires, null, null, 12);
+        $other = $this->client()->presignPut('a/b.txt', $expires, null, null, 13);
+
+        self::assertSame('12', $grant->headers['Content-Length']);
+        self::assertStringContainsString(
+            'X-Amz-SignedHeaders=content-length%3Bhost',
+            (string) parse_url($grant->url, PHP_URL_QUERY),
+        );
+        self::assertNotSame(parse_url($grant->url, PHP_URL_QUERY), parse_url($other->url, PHP_URL_QUERY));
+    }
+
+    public function testPresignPartPutPinsDeclaredSizeIntoTheSignature(): void
+    {
+        $expires = new DateTimeImmutable('+10 minutes');
+        $grant = $this->client()->presignPartPut('a/b.bin', 'UP1', 1, $expires, size: 6);
+
+        self::assertSame('6', $grant->headers['Content-Length']);
+        self::assertSame(1, $grant->partNumber);
+        self::assertStringContainsString(
+            'X-Amz-SignedHeaders=content-length%3Bhost',
+            (string) parse_url($grant->url, PHP_URL_QUERY),
+        );
+    }
+
+    public function testPresignPartPutSignsTheChecksumUnderTheChosenAlgorithm(): void
+    {
+        $expires = new DateTimeImmutable('+10 minutes');
+        $grant = $this->client()->presignPartPut('a/b.bin', 'UP1', 1, $expires, checksumBase64: 'AcOrFCa+XCM=', checksumAlgorithm: 'CRC64NVME');
+
+        self::assertSame('AcOrFCa+XCM=', $grant->headers['X-Amz-Checksum-Crc64nvme']);
+        self::assertStringContainsString(
+            'X-Amz-SignedHeaders=host%3Bx-amz-checksum-crc64nvme',
+            (string) parse_url($grant->url, PHP_URL_QUERY),
+        );
+
+        $sha = $this->client()->presignPartPut('a/b.bin', 'UP1', 1, $expires, checksumBase64: 'AcOrFCa+XCM=');
+        self::assertSame('AcOrFCa+XCM=', $sha->headers['X-Amz-Checksum-Sha256']);
+    }
+
+    public function testPresignPartPutRefusesAnUnknownChecksumAlgorithm(): void
+    {
+        $this->expectException(InvalidConfigurationValue::class);
+        $this->expectExceptionMessage('SHA256 or CRC64NVME');
+
+        $this->client()->presignPartPut('a/b.bin', 'UP1', 1, new DateTimeImmutable('+10 minutes'), checksumBase64: 'x', checksumAlgorithm: 'CRC32');
+    }
+
+    public function testHeadObjectDecodesPlainCompositeAndUndecodableChecksums(): void
+    {
+        $digest = str_repeat('ab', 32);
+        $this->http->responses[] = $this->response(200, '', [
+            'x-amz-checksum-sha256' => base64_encode((string) hex2bin($digest)),
+        ]);
+        $this->http->responses[] = $this->response(200, '', [
+            'x-amz-checksum-sha256' => base64_encode((string) hex2bin($digest)) . '-150',
+        ]);
+        $this->http->responses[] = $this->response(200, '', [
+            'x-amz-checksum-sha256' => '###',
+        ]);
+
+        self::assertSame($digest, $this->client()->headObject('a.txt')['checksumSha256']);
+        self::assertSame($digest . '-150', $this->client()->headObject('a.txt')['checksumSha256']);
+        self::assertNull($this->client()->headObject('a.txt')['checksumSha256']);
+    }
+
+    public function testHeadObjectSurfacesCrc64AndChecksumTypeVerbatim(): void
+    {
+        $this->http->responses[] = $this->response(200, '', [
+            'x-amz-checksum-crc64nvme' => 'AcOrFCa+XCM=-2',
+            'x-amz-checksum-type' => 'COMPOSITE',
+        ]);
+        $this->http->responses[] = $this->response(200, '');
+
+        $head = $this->client()->headObject('a.txt');
+        self::assertSame('AcOrFCa+XCM=-2', $head['checksumCrc64']);
+        self::assertSame('COMPOSITE', $head['checksumType']);
+        self::assertNull($head['checksumSha256']);
+
+        $head = $this->client()->headObject('a.txt');
+        self::assertNull($head['checksumCrc64']);
+        self::assertNull($head['checksumType']);
+    }
+
+    public function testStoredChecksumPrefersSha256ThenCrc64AndNeverReadsTheObject(): void
+    {
+        $adapter = new S3Adapter(
+            $this->client(),
+            new S3Config(bucket: 'phpdot-test', region: 'us-east-1', key: 'AKIDEXAMPLE', secret: 'secret'),
+        );
+        $digest = str_repeat('ab', 32);
+        $this->http->responses[] = $this->response(200, '', [
+            'x-amz-checksum-sha256' => base64_encode((string) hex2bin($digest)),
+            'x-amz-checksum-crc64nvme' => 'AcOrFCa+XCM=',
+        ]);
+        $this->http->responses[] = $this->response(200, '', [
+            'x-amz-checksum-crc64nvme' => 'AcOrFCa+XCM=',
+        ]);
+        $this->http->responses[] = $this->response(200, '');
+
+        self::assertSame('sha256:' . $digest, $adapter->storedChecksum('a.txt'));
+        self::assertSame('crc64nvme:AcOrFCa+XCM=', $adapter->storedChecksum('a.txt'));
+        self::assertNull($adapter->storedChecksum('a.txt'));
+
+        foreach ($this->http->requests as $request) {
+            self::assertSame('HEAD', $request->getMethod());
+        }
+    }
+
+    public function testCreateMultipartCarriesTheChecksumAlgorithmDirective(): void
+    {
+        $adapter = new S3Adapter(
+            $this->client(),
+            new S3Config(bucket: 'phpdot-test', region: 'us-east-1', key: 'AKIDEXAMPLE', secret: 'secret'),
+        );
+        $this->http->responses[] = $this->response(
+            200,
+            '<?xml version="1.0" encoding="UTF-8"?><InitiateMultipartUploadResult><UploadId>UP9</UploadId></InitiateMultipartUploadResult>',
+        );
+
+        $adapter->createMultipart('a/b.bin', new Config([Config::CHECKSUM_ALGORITHM => 'SHA256']));
+
+        self::assertSame('SHA256', $this->http->requests[0]->getHeaderLine('x-amz-checksum-algorithm'));
+    }
+
     public function testListPartsFollowsPaginationAndReturnsTheBucketsOwnParts(): void
     {
         $this->http->responses[] = $this->response(200, $this->listPartsXml(true, null, '"etag-1"', '"etag-2"'));
@@ -198,9 +327,9 @@ final class S3ClientTest extends TestCase
         $parts = $this->client()->listParts('a/b.bin', 'upload-1');
 
         self::assertSame([
-            1 => ['etag' => '"etag-1"', 'size' => 8],
-            2 => ['etag' => '"etag-2"', 'size' => 8],
-            3 => ['etag' => '"etag-3"', 'size' => 4],
+            1 => ['etag' => '"etag-1"', 'size' => 8, 'checksumSha256' => null, 'checksumCrc64' => null],
+            2 => ['etag' => '"etag-2"', 'size' => 8, 'checksumSha256' => null, 'checksumCrc64' => null],
+            3 => ['etag' => '"etag-3"', 'size' => 4, 'checksumSha256' => null, 'checksumCrc64' => null],
         ], $parts);
 
         $second = $this->http->requests[1]->getUri();

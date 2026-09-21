@@ -104,4 +104,36 @@ final class XmlTest extends TestCase
         // The generated body is well-formed XML.
         self::assertTrue((new DOMDocument())->loadXML($body));
     }
+
+    public function testParsesPartChecksumsFromListParts(): void
+    {
+        $body = '<?xml version="1.0" encoding="UTF-8"?>'
+            . '<ListPartsResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
+            . '<IsTruncated>false</IsTruncated>'
+            . '<Part><PartNumber>1</PartNumber><ETag>"e1"</ETag><Size>8</Size><ChecksumSHA256>abc</ChecksumSHA256></Part>'
+            . '<Part><PartNumber>2</PartNumber><ETag>"e2"</ETag><Size>4</Size><ChecksumCRC64NVME>Ac0=</ChecksumCRC64NVME></Part>'
+            . '</ListPartsResult>';
+
+        $result = $this->xml->parseListParts($body);
+
+        self::assertSame('abc', $result['parts'][0]['checksumSha256']);
+        self::assertNull($result['parts'][0]['checksumCrc64']);
+        self::assertSame('Ac0=', $result['parts'][1]['checksumCrc64']);
+        self::assertNull($result['parts'][1]['checksumSha256']);
+    }
+
+    public function testCompleteMultipartBodyCarriesChecksumsWhenPartsHaveThem(): void
+    {
+        $body = $this->xml->buildCompleteMultipartBody([
+            1 => ['etag' => '"etag-one"', 'checksumSha256' => 'abc'],
+            2 => ['etag' => '"etag-two"', 'checksumCrc64' => 'Ac0='],
+            3 => ['etag' => '"etag-three"', 'checksumSha256' => null, 'checksumCrc64' => null],
+        ]);
+
+        self::assertStringContainsString('<ChecksumSHA256>abc</ChecksumSHA256>', $body);
+        self::assertStringContainsString('<ChecksumCRC64NVME>Ac0=</ChecksumCRC64NVME>', $body);
+        self::assertSame(1, substr_count($body, '<ChecksumSHA256>'));
+        self::assertSame(1, substr_count($body, '<ChecksumCRC64NVME>'));
+        self::assertTrue((new DOMDocument())->loadXML($body));
+    }
 }

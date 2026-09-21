@@ -113,6 +113,17 @@ interface FilesystemInterface
     public function checksum(string $path, string $algo = 'sha256'): string;
 
     /**
+     * The fingerprint the storage itself holds, prefixed with its algorithm
+     * ("sha256:<hex>", "crc64nvme:<base64>"), from metadata alone. Null when
+     * the storage holds nothing or the adapter keeps no fingerprints.
+     *
+     * @param string $path
+     *
+     * @return null|string
+     */
+    public function storedChecksum(string $path): null|string;
+
+    /**
      * Visibility.
      *
      * @param string $path

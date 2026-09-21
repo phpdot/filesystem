@@ -8,10 +8,11 @@ declare(strict_types=1);
  * what it granted.
  *
  * The URL authorizes exactly one PUT of exactly one key until the expiry. When
- * a content type was pinned at signing it appears in `headers` — the client
- * MUST send it verbatim, because it is part of the signature. What the URL can
- * never bound is size: a presigned PUT accepts any body, so the ceiling is the
- * application's completion check, not the grant.
+ * a content type or a size was pinned at signing it appears in `headers` — the
+ * client MUST send it verbatim, because it is part of the signature; a pinned
+ * `Content-Length` makes the bucket refuse any body of a different length. An
+ * unpinned aspect stays the client's to choose, and an unpinned size accepts
+ * any body, leaving the ceiling to the application's completion check.
  *
  * @author Omar Hamdan <omar@phpdot.com>
  * @license MIT

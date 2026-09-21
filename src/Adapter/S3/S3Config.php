@@ -6,9 +6,7 @@ declare(strict_types=1);
  * Connection settings for an S3-compatible backend.
  *
  * Defaults target AWS; set `endpoint` + `pathStyle` for MinIO, or `endpoint`
- * with `region: 'auto'` for Cloudflare R2. We never send `x-amz-checksum-*`
- * headers, so the CRC integrity checks that R2/MinIO reject are avoided by
- * construction.
+ * with `region: 'auto'` for Cloudflare R2, whose part digests must be CRC64NVME.
  *
  * @author Omar Hamdan <omar@phpdot.com>
  * @license MIT

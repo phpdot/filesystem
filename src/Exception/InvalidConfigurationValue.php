@@ -32,4 +32,16 @@ final class InvalidConfigurationValue extends InvalidArgumentException implement
     {
         return new self("Configuration value for \"{$key}\" is not of the expected type: {$expectedType}.");
     }
+
+    /**
+     * Checksum algorithm.
+     *
+     * @param string $algorithm
+     *
+     * @return self
+     */
+    public static function checksumAlgorithm(string $algorithm): self
+    {
+        return new self("Unsupported checksum algorithm \"{$algorithm}\": SHA256 or CRC64NVME.");
+    }
 }

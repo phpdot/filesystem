@@ -19,6 +19,7 @@ namespace PHPdot\Filesystem\Adapter\S3;
 use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
+use PHPdot\Filesystem\Exception\InvalidConfigurationValue;
 use PHPdot\Filesystem\Exception\MultipartUploadFailed;
 use PHPdot\Filesystem\Exception\S3RequestFailed;
 use PHPdot\Filesystem\Upload\PresignedUpload;
@@ -103,11 +104,15 @@ final class S3Client
     }
 
     /**
-     * Fetch an object's metadata via a HEAD request.
+     * Fetch an object's metadata via a HEAD request. A checksum a multipart
+     * complete stored is composite ("<digest>-<partCount>") and reads back
+     * with its suffix, honest about being a checksum of the parts. The CRC64
+     * value stays base64 exactly as the storage gives it, and the checksum
+     * type names FULL_OBJECT or COMPOSITE when the storage says so.
      *
      * @param string $key
      *
-     * @return array{size: int, lastModified: ?int, mimeType: ?string, etag: string, checksumSha256: ?string}
+     * @return array{size: int, lastModified: ?int, mimeType: ?string, etag: string, checksumSha256: null|string, checksumCrc64: null|string, checksumType: null|string}
      */
     public function headObject(string $key): array
     {
@@ -117,14 +122,18 @@ final class S3Client
 
         $lastModified = $response->getHeaderLine('Last-Modified');
         $mimeType = $response->getHeaderLine('Content-Type');
-        $storedChecksum = $response->getHeaderLine('x-amz-checksum-sha256');
+        $checksumSha256 = $this->decodeChecksum($response->getHeaderLine('x-amz-checksum-sha256'));
+        $checksumCrc64 = $response->getHeaderLine('x-amz-checksum-crc64nvme');
+        $checksumType = $response->getHeaderLine('x-amz-checksum-type');
 
         return [
             'size' => (int) $response->getHeaderLine('Content-Length'),
             'lastModified' => $lastModified === '' ? null : $this->httpDate($lastModified),
             'mimeType' => $mimeType === '' ? null : $mimeType,
             'etag' => trim($response->getHeaderLine('ETag'), '"'),
-            'checksumSha256' => $storedChecksum === '' ? null : bin2hex((string) base64_decode($storedChecksum, true)),
+            'checksumSha256' => $checksumSha256,
+            'checksumCrc64' => $checksumCrc64 === '' ? null : $checksumCrc64,
+            'checksumType' => $checksumType === '' ? null : $checksumType,
         ];
     }
 
@@ -256,9 +265,11 @@ final class S3Client
     }
 
     /**
-     * Complete a multipart upload from its uploaded parts.
+     * Complete a multipart upload from its uploaded parts. Parts carrying
+     * their checksum make S3 store a composite object checksum; ETag-only
+     * parts complete exactly as before.
      *
-     * @param array<int,string> $partsEtags partNumber => ETag
+     * @param array<int,string|array{etag: string, checksumSha256?: null|string, checksumCrc64?: null|string}> $partsEtags partNumber => part
      * @param string $key
      * @param string $uploadId
      *
@@ -323,22 +334,28 @@ final class S3Client
      * to the bucket, until the expiry. A pinned content type joins the
      * signature — the returned grant names it in `headers`, and a client that
      * sends a different type is rejected by the bucket, keeping the stored
-     * object's type a server decision. The URL cannot bound size; that ceiling
-     * is the caller's completion check.
+     * object's type a server decision. A declared size pins the body the same
+     * way: the bucket refuses any body of a different length; without one the
+     * grant accepts any size and the ceiling stays the caller's check.
      *
      * @param string $key
      * @param DateTimeInterface $expiresAt
      * @param null|string $contentType
+     * @param null|int $size Pinned into the signature when given — the bucket refuses a body of any other length
      *
      * @return PresignedUpload
      */
-    public function presignPut(string $key, DateTimeInterface $expiresAt, null|string $contentType = null, null|string $sha256Base64 = null): PresignedUpload
+    public function presignPut(string $key, DateTimeInterface $expiresAt, null|string $contentType = null, null|string $sha256Base64 = null, null|int $size = null): PresignedUpload
     {
         $now = $this->now();
         $expiresIn = max(1, $expiresAt->getTimestamp() - $now->getTimestamp());
 
         $request = $this->requests->createRequest('PUT', $this->url($key));
         $signed = [];
+
+        if ($size !== null) {
+            $signed['content-length'] = (string) $size;
+        }
 
         if ($sha256Base64 !== null) {
             $signed['x-amz-checksum-sha256'] = $sha256Base64;
@@ -373,10 +390,13 @@ final class S3Client
      * @param int $partNumber 1-based, ascending; every part but the last must clear the storage's minimum part size
      * @param DateTimeInterface $expiresAt
      * @param null|string $contentType
+     * @param null|string $checksumBase64 Signed into the grant under the algorithm's header; SHA256 everywhere, CRC64NVME where the storage refuses SHA-256 parts (R2)
+     * @param string $checksumAlgorithm SHA256 (default) or CRC64NVME
+     * @param null|int $size Pinned into the signature when given — the bucket refuses a body of any other length
      *
      * @return PresignedUpload
      */
-    public function presignPartPut(string $key, string $uploadId, int $partNumber, DateTimeInterface $expiresAt, null|string $contentType = null, null|string $sha256Base64 = null): PresignedUpload
+    public function presignPartPut(string $key, string $uploadId, int $partNumber, DateTimeInterface $expiresAt, null|string $contentType = null, null|string $checksumBase64 = null, string $checksumAlgorithm = 'SHA256', null|int $size = null): PresignedUpload
     {
         $now = $this->now();
         $expiresIn = max(1, $expiresAt->getTimestamp() - $now->getTimestamp());
@@ -384,10 +404,15 @@ final class S3Client
         $query = 'partNumber=' . $partNumber . '&uploadId=' . rawurlencode($uploadId);
         $request = $this->requests->createRequest('PUT', $this->url($key, $query));
         $signed = [];
+        $checksumHeader = self::checksumHeader($checksumAlgorithm);
 
-        if ($sha256Base64 !== null) {
-            $signed['x-amz-checksum-sha256'] = $sha256Base64;
-            $request = $request->withHeader('x-amz-checksum-sha256', $sha256Base64);
+        if ($size !== null) {
+            $signed['content-length'] = (string) $size;
+        }
+
+        if ($checksumBase64 !== null) {
+            $signed[$checksumHeader] = $checksumBase64;
+            $request = $request->withHeader($checksumHeader, $checksumBase64);
         }
 
         if ($contentType !== null) {
@@ -413,7 +438,7 @@ final class S3Client
      * @param string $key
      * @param string $uploadId
      *
-     * @return array<int, array{etag: string, size: int}> partNumber => etag/size
+     * @return array<int, array{etag: string, size: int, checksumSha256: null|string, checksumCrc64: null|string}> partNumber => etag/size/checksums
      */
     public function listParts(string $key, string $uploadId): array
     {
@@ -427,12 +452,18 @@ final class S3Client
                 $query .= '&part-number-marker=' . $marker;
             }
 
-            $request = $this->requests->createRequest('GET', $this->url($key, $query));
+            $request = $this->requests->createRequest('GET', $this->url($key, $query))
+                ->withHeader('x-amz-checksum-mode', 'ENABLED');
             $response = $this->ensureSuccess($this->send($request, self::EMPTY_PAYLOAD_HASH), 'ListParts ' . $key);
             $page = $this->xml->parseListParts((string) $response->getBody());
 
             foreach ($page['parts'] as $part) {
-                $parts[$part['number']] = ['etag' => $part['etag'], 'size' => $part['size']];
+                $parts[$part['number']] = [
+                    'etag' => $part['etag'],
+                    'size' => $part['size'],
+                    'checksumSha256' => $part['checksumSha256'] ?? null,
+                    'checksumCrc64' => $part['checksumCrc64'] ?? null,
+                ];
             }
 
             $marker = $page['nextMarker'];
@@ -570,6 +601,50 @@ final class S3Client
     private function encodeKey(string $key): string
     {
         return implode('/', array_map('rawurlencode', explode('/', ltrim($key, '/'))));
+    }
+
+    /**
+     * The wire header an algorithm name signs under. One digest family per
+     * request is an S3 invariant, so callers choose exactly one.
+     *
+     * @param string $algorithm
+     *
+     * @return string
+     */
+    private function checksumHeader(string $algorithm): string
+    {
+        return match ($algorithm) {
+            'SHA256' => 'x-amz-checksum-sha256',
+            'CRC64NVME' => 'x-amz-checksum-crc64nvme',
+            default => throw InvalidConfigurationValue::checksumAlgorithm($algorithm),
+        };
+    }
+
+    /**
+     * Decode the stored x-amz-checksum-sha256 header value into hex. A
+     * composite value ("<base64>-<partCount>") keeps its suffix; an
+     * undecodable one is null, never a silently empty fingerprint.
+     *
+     * @param string $stored
+     *
+     * @return null|string
+     */
+    private function decodeChecksum(string $stored): null|string
+    {
+        if ($stored === '') {
+            return null;
+        }
+
+        $composite = str_contains($stored, '-');
+        $split = $composite ? (int) strrpos($stored, '-') : 0;
+        $base64 = $composite ? substr($stored, 0, $split) : $stored;
+        $decoded = base64_decode($base64, true);
+
+        if ($decoded === false) {
+            return null;
+        }
+
+        return bin2hex($decoded) . ($composite ? substr($stored, $split) : '');
     }
 
     /**

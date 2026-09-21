@@ -43,6 +43,14 @@ final class LocalAdapterTest extends AdapterTestCase
         self::assertSame(hash('sha256', 'hash me'), $adapter->checksum('sum.txt', 'sha256'));
     }
 
+    public function testStoredChecksumIsNullOnLocalDisk(): void
+    {
+        $adapter = $this->createLocalAdapter();
+        $adapter->write('sum.txt', $this->stream('hash me'), new Config());
+
+        self::assertNull($adapter->storedChecksum('sum.txt'));
+    }
+
     public function testPublicUrlJoinsBaseAndPath(): void
     {
         $adapter = $this->createLocalAdapter();

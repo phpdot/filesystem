@@ -162,6 +162,27 @@ final class Filesystem implements FilesystemInterface
         return hash_final($context);
     }
 
+    /**
+     * The fingerprint the storage itself holds for the object, prefixed with
+     * its algorithm ("sha256:<hex>", "crc64nvme:<base64>"), read from metadata
+     * alone — never by reading the bytes, so it costs one HEAD. Null when the
+     * storage holds nothing or the adapter keeps no fingerprints.
+     *
+     * @param string $path
+     *
+     * @return null|string
+     */
+    public function storedChecksum(string $path): null|string
+    {
+        $normalized = $this->normalizer->normalizePath($path);
+
+        if ($this->adapter instanceof ChecksumProvider) {
+            return $this->adapter->storedChecksum($normalized);
+        }
+
+        return null;
+    }
+
     public function visibility(string $path): Visibility
     {
         $normalized = $this->normalizer->normalizePath($path);
@@ -259,17 +280,19 @@ final class Filesystem implements FilesystemInterface
      * Grant a direct PUT for one object: a URL the client uploads with, straight
      * to the bucket, until the expiry. Pinning a content type makes it part of
      * the signature — the grant names it in its headers, and a client sending
-     * anything else is rejected by the bucket. The grant cannot bound size;
-     * completion is the application\x27s check, against the storage\x27s own truth.
+     * anything else is rejected by the bucket. Declaring a size pins the body
+     * the same way: the bucket refuses a body of any other length. Without a
+     * declared size the grant accepts any size; completion stays the check.
      *
      * @param string $path
      * @param DateTimeInterface $expiresAt
      * @param null|string $contentType
+     * @param null|int $size
      * @param array<string, mixed> $config
      *
      * @return PresignedUpload
      */
-    public function presignedUpload(string $path, DateTimeInterface $expiresAt, null|string $contentType = null, null|string $sha256Base64 = null, array $config = []): PresignedUpload
+    public function presignedUpload(string $path, DateTimeInterface $expiresAt, null|string $contentType = null, null|string $sha256Base64 = null, null|int $size = null, array $config = []): PresignedUpload
     {
         $normalized = $this->normalizer->normalizePath($path);
 
@@ -277,7 +300,7 @@ final class Filesystem implements FilesystemInterface
             throw UnableToPresignUpload::notSupported($normalized);
         }
 
-        return $this->adapter->presignedUpload($normalized, $expiresAt, $contentType, $sha256Base64, new Config($config));
+        return $this->adapter->presignedUpload($normalized, $expiresAt, $contentType, $sha256Base64, $size, new Config($config));
     }
 
     /**
@@ -286,18 +309,22 @@ final class Filesystem implements FilesystemInterface
      * grant per part; the client uploads parts straight to the bucket and holds
      * no ETags, because completion is built from the storage's own part list.
      * Every part but the last must clear the storage's minimum part size —
-     * 5 MiB on S3 — or completion fails EntityTooSmall.
+     * 5 MiB on S3 — or completion fails EntityTooSmall. Declaring the part's
+     * size pins its body: the bucket refuses a body of any other length.
      *
      * @param string $path
      * @param string $uploadId
      * @param int $partNumber
      * @param DateTimeInterface $expiresAt
      * @param null|string $contentType
+     * @param null|string $checksumBase64
+     * @param string $checksumAlgorithm
+     * @param null|int $size
      * @param array<string, mixed> $config
      *
      * @return PresignedUpload
      */
-    public function presignedPartUpload(string $path, string $uploadId, int $partNumber, DateTimeInterface $expiresAt, null|string $contentType = null, null|string $sha256Base64 = null, array $config = []): PresignedUpload
+    public function presignedPartUpload(string $path, string $uploadId, int $partNumber, DateTimeInterface $expiresAt, null|string $contentType = null, null|string $checksumBase64 = null, string $checksumAlgorithm = 'SHA256', null|int $size = null, array $config = []): PresignedUpload
     {
         $normalized = $this->normalizer->normalizePath($path);
 
@@ -305,7 +332,7 @@ final class Filesystem implements FilesystemInterface
             throw UnableToPresignUpload::notSupported($normalized);
         }
 
-        return $this->adapter->presignedPartUpload($normalized, $uploadId, $partNumber, $expiresAt, $contentType, $sha256Base64, new Config($config));
+        return $this->adapter->presignedPartUpload($normalized, $uploadId, $partNumber, $expiresAt, $contentType, $checksumBase64, $checksumAlgorithm, $size, new Config($config));
     }
     public function url(string $path, array $config = []): string
     {

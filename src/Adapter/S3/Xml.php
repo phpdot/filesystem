@@ -125,7 +125,7 @@ final class Xml
      *
      * @param string $body The ListPartsResult XML
      *
-     * @return array{parts: list<array{number: int, etag: string, size: int}>, truncated: bool, nextMarker: null|int}
+     * @return array{parts: list<array{number: int, etag: string, size: int, checksumSha256: null|string, checksumCrc64: null|string}>, truncated: bool, nextMarker: null|int}
      */
     public function parseListParts(string $body): array
     {
@@ -145,7 +145,13 @@ final class Xml
                 continue;
             }
 
-            $parts[] = ['number' => (int) $number, 'etag' => $etag, 'size' => (int) $size];
+            $parts[] = [
+                'number' => (int) $number,
+                'etag' => $etag,
+                'size' => (int) $size,
+                'checksumSha256' => $this->firstText($part, 'ChecksumSHA256'),
+                'checksumCrc64' => $this->firstText($part, 'ChecksumCRC64NVME'),
+            ];
         }
 
         $truncated = $this->firstText($document, 'IsTruncated') === 'true';
@@ -155,9 +161,12 @@ final class Xml
     }
 
     /**
-     * Build the CompleteMultipartUpload XML request body.
+     * Build the CompleteMultipartUpload XML request body. A part may be its
+     * ETag alone or carry the checksum the storage reported for it — either
+     * family, one per upload; saying them back is what makes the finished
+     * object keep one where the storage supports it.
      *
-     * @param array<int,string> $parts partNumber => ETag (any order)
+     * @param array<int,string|array{etag: string, checksumSha256?: null|string, checksumCrc64?: null|string}> $parts partNumber => part (any order)
      *
      * @return string
      */
@@ -168,8 +177,15 @@ final class Xml
         $xml = '<?xml version="1.0" encoding="UTF-8"?>'
             . '<CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">';
 
-        foreach ($parts as $number => $etag) {
-            $xml .= '<Part><PartNumber>' . $number . '</PartNumber><ETag>' . $this->escape($etag) . '</ETag></Part>';
+        foreach ($parts as $number => $part) {
+            $etag = is_array($part) ? $part['etag'] : $part;
+            $sha256 = is_array($part) ? ($part['checksumSha256'] ?? null) : null;
+            $crc64 = is_array($part) ? ($part['checksumCrc64'] ?? null) : null;
+
+            $xml .= '<Part><PartNumber>' . $number . '</PartNumber><ETag>' . $this->escape($etag) . '</ETag>'
+                . ($sha256 === null ? '' : '<ChecksumSHA256>' . $this->escape($sha256) . '</ChecksumSHA256>')
+                . ($crc64 === null ? '' : '<ChecksumCRC64NVME>' . $this->escape($crc64) . '</ChecksumCRC64NVME>')
+                . '</Part>';
         }
 
         return $xml . '</CompleteMultipartUpload>';

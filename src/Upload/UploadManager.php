@@ -29,6 +29,7 @@ use PHPdot\Filesystem\Exception\MultipartUploadFailed;
 use PHPdot\Filesystem\Exception\UploadOffsetMismatch;
 use PHPdot\Filesystem\Exception\UploadSessionExpired;
 use PHPdot\Filesystem\Exception\UploadSessionNotFound;
+use PHPdot\Filesystem\Exception\UploadSizeMismatch;
 use PHPdot\Filesystem\FilesystemConfig;
 use Psr\Http\Message\StreamInterface;
 use Throwable;
@@ -103,19 +104,14 @@ final class UploadManager implements UploadManagerInterface
 
         $bytesOnStorage = array_sum(array_map(static fn(array $part): int => $part['size'], $parts));
 
-        if ($session->totalSize !== null && $bytesOnStorage < $session->totalSize) {
-            throw MultipartUploadFailed::withReason(sprintf(
-                'Upload incomplete: received %d of %d declared bytes.',
-                $bytesOnStorage,
-                $session->totalSize,
-            ));
+        if ($session->totalSize !== null && $bytesOnStorage !== $session->totalSize) {
+            $this->multipart()->abortMultipart($session->path, $session->uploadId);
+            $this->store->delete($sessionId);
+
+            throw UploadSizeMismatch::declared($session->totalSize, $bytesOnStorage);
         }
 
-        $this->multipart()->completeMultipart(
-            $session->path,
-            $session->uploadId,
-            array_map(static fn(array $part): string => $part['etag'], $parts),
-        );
+        $this->multipart()->completeMultipart($session->path, $session->uploadId, $parts);
         $this->store->delete($sessionId);
     }
 

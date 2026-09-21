@@ -337,6 +337,11 @@ final class LocalAdapter implements AdapterInterface, ChecksumProvider, Multipar
         return $hash;
     }
 
+    public function storedChecksum(string $path): null|string
+    {
+        return null;
+    }
+
     public function publicUrl(string $path, Config $config): string
     {
         if ($this->publicUrl === null) {
@@ -383,7 +388,7 @@ final class LocalAdapter implements AdapterInterface, ChecksumProvider, Multipar
 
         while (is_file($this->partFile($path, $uploadId, $number))) {
             $size = filesize($this->partFile($path, $uploadId, $number));
-            $parts[$number] = ['etag' => (string) $number, 'size' => $size === false ? 0 : $size];
+            $parts[$number] = ['etag' => (string) $number, 'size' => $size === false ? 0 : $size, 'checksumSha256' => null, 'checksumCrc64' => null];
             ++$number;
         }
 

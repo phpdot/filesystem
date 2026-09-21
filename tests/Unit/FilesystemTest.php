@@ -33,6 +33,21 @@ final class FilesystemTest extends TestCase
         $fs->presignedUpload('a/b.png', new DateTimeImmutable('+5 minutes'), 'image/png');
     }
 
+    public function testStoredChecksumIsNullWhenTheAdapterHasNoChecksumCapability(): void
+    {
+        $fs = new Filesystem(new StubAdapter($this->adapter()), $this->writeContents());
+
+        self::assertNull($fs->storedChecksum('a.txt'));
+    }
+
+    public function testStoredChecksumAsksTheAdapterWhenItHasTheCapability(): void
+    {
+        $fs = $this->filesystem();
+        $fs->write('a.txt', 'hello');
+
+        self::assertNull($fs->storedChecksum('a.txt'));
+    }
+
     public function testWritesAndReadsStringInput(): void
     {
         $fs = $this->filesystem();

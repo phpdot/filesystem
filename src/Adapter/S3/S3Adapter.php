@@ -270,6 +270,27 @@ final class S3Adapter implements AdapterInterface, ChecksumProvider, MultipartCa
         return hash_final($context);
     }
 
+    public function storedChecksum(string $path): null|string
+    {
+        try {
+            $head = $this->client->headObject($this->prefixer->prefixPath($path));
+        } catch (S3RequestFailed $exception) {
+            throw UnableToRetrieveMetadata::checksum($path, $exception->getMessage(), $exception);
+        }
+
+        $sha256 = $head['checksumSha256'] ?? null;
+        if (is_string($sha256)) {
+            return 'sha256:' . $sha256;
+        }
+
+        $crc64 = $head['checksumCrc64'] ?? null;
+        if (is_string($crc64)) {
+            return 'crc64nvme:' . $crc64;
+        }
+
+        return null;
+    }
+
     public function publicUrl(string $path, Config $config): string
     {
         $key = $this->prefixer->prefixPath($path);
@@ -286,14 +307,14 @@ final class S3Adapter implements AdapterInterface, ChecksumProvider, MultipartCa
         return $this->client->presign($this->prefixer->prefixPath($path), $expiresAt);
     }
 
-    public function presignedUpload(string $path, DateTimeInterface $expiresAt, null|string $contentType, null|string $sha256Base64, Config $config): PresignedUpload
+    public function presignedUpload(string $path, DateTimeInterface $expiresAt, null|string $contentType, null|string $sha256Base64, null|int $size, Config $config): PresignedUpload
     {
-        return $this->client->presignPut($this->prefixer->prefixPath($path), $expiresAt, $contentType, $sha256Base64);
+        return $this->client->presignPut($this->prefixer->prefixPath($path), $expiresAt, $contentType, $sha256Base64, $size);
     }
 
-    public function presignedPartUpload(string $path, string $uploadId, int $partNumber, DateTimeInterface $expiresAt, null|string $contentType, null|string $sha256Base64, Config $config): PresignedUpload
+    public function presignedPartUpload(string $path, string $uploadId, int $partNumber, DateTimeInterface $expiresAt, null|string $contentType, null|string $checksumBase64, string $checksumAlgorithm, null|int $size, Config $config): PresignedUpload
     {
-        return $this->client->presignPartPut($this->prefixer->prefixPath($path), $uploadId, $partNumber, $expiresAt, $contentType, $sha256Base64);
+        return $this->client->presignPartPut($this->prefixer->prefixPath($path), $uploadId, $partNumber, $expiresAt, $contentType, $checksumBase64, $checksumAlgorithm, $size);
     }
 
     public function listParts(string $path, string $uploadId): array
@@ -307,6 +328,11 @@ final class S3Adapter implements AdapterInterface, ChecksumProvider, MultipartCa
         $mimeType = $config->getNullableString(Config::MIME_TYPE) ?? $this->mimeDetector->detectMimeTypeFromPath($path);
         if ($mimeType !== null) {
             $headers['Content-Type'] = $mimeType;
+        }
+
+        $algorithm = $config->getNullableString(Config::CHECKSUM_ALGORITHM);
+        if ($algorithm !== null) {
+            $headers['x-amz-checksum-algorithm'] = $algorithm;
         }
 
         return $this->client->createMultipartUpload($this->prefixer->prefixPath($path), $headers);

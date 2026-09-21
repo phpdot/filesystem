@@ -46,7 +46,7 @@ composer require phpdot/filesystem
 Let the client PUT straight to the bucket — PHP only mints the grant:
 
 ```php
-$grant = $fs->presignedUpload('avatars/42.png', new DateTimeImmutable('+10 minutes'), 'image/png');
+$grant = $fs->presignedUpload('avatars/42.png', new DateTimeImmutable('+10 minutes'), 'image/png', null, $expectedBytes);
 
 // hand $grant->toArray() to your endpoint; the client then does:
 //   PUT $grant['url']  with headers: $grant['headers'], body: the file
@@ -55,7 +55,9 @@ $grant = $fs->presignedUpload('avatars/42.png', new DateTimeImmutable('+10 minut
 The content type is pinned into the signature when given — a client sending any other
 type is rejected by the bucket (`403 SignatureDoesNotMatch`), so the stored type stays a
 server decision. Pass `null` only when nothing from the bucket is served to a browser.
-The grant cannot bound size; verify on completion against the storage's own truth:
+A declared size is pinned the same way: `Content-Length` joins the signature and the
+bucket refuses a body of any other length. Without one the grant accepts any size;
+verify on completion against the storage's own truth:
 
 ```php
 $fs->fileExists('avatars/42.png') && $fs->fileSize('avatars/42.png') === $expected;
@@ -70,14 +72,15 @@ retries alone instead of restarting the upload:
 ```php
 $session = $manager->create('videos/clip.mp4', $totalBytes);   // server mints uploadId + session
 
-$grant = $fs->presignedPartUpload('videos/clip.mp4', $session->uploadId, $n, new DateTimeImmutable('+10 minutes'), 'video/mp4');
+$grant = $fs->presignedPartUpload('videos/clip.mp4', $session->uploadId, $n, new DateTimeImmutable('+10 minutes'), 'video/mp4', null, $partBytes);
 // client PUTs part $n directly; every part but the last must clear the storage minimum (5 MiB on S3)
 
 $manager->complete($session->id);   // built from the bucket's own part list — the client holds no ETags
 ```
 
-The single-PUT 5 GB ceiling does not apply; a presigned part cannot bound its own size any
-more than a whole-object grant can.
+The single-PUT 5 GB ceiling does not apply, and a part grant pins its declared size exactly
+like a whole-object grant does. `complete()` refuses any upload whose stored bytes differ
+from the declaration in either direction and aborts it (`UploadSizeMismatch`).
 
 **Checksums without downloads (SHA-256).** Every upload path carries the digest as
 `x-amz-checksum-sha256` — server writes hash the stream they hold, grants sign the digest you
@@ -90,9 +93,28 @@ downloading the file:
 $fs->checksum('avatars/42.png', 'sha256');   // HeadObject with x-amz-checksum-mode: ENABLED
 ```
 
-For multipart, each part's grant carries its own digest and the object's checksum is the
-S3-computed composite. Objects uploaded before this convention have nothing stored and fall
-back to streaming the object once.
+For multipart, the create call decides: pass `['checksum_algorithm' => 'SHA256']` (through
+`UploadManager::create()`'s `$config`, or any `createMultipart()` config) and the bucket
+tracks every part's digest into a stored composite — the finished object's checksum comes
+back by HEAD as `"<sha256-of-concatenated-part-digests>-<partCount>"` on both S3 and MinIO.
+Without the directive, a multipart complete stores nothing object-level on MinIO, and on
+AWS only the automatically computed CRC64NVME. `storedChecksum($path)` reads whatever the
+storage actually holds — `"sha256:<hex>"`, `"sha256:<hex>-N"`, or `"crc64nvme:<base64>"`
+(AWS stamps every object with CRC64NVME, so even legacy ones answer) — from one HEAD,
+never by downloading. Objects whose storage holds nothing still fall back to streaming
+the object once through `checksum()`.
+
+On R2, part digests must be CRC64NVME — R2 refuses SHA-256 part headers outright (501)
+but verifies CRC64NVME against the bytes at the door and stores the finished object's
+CRC64, so `storedChecksum()` answers there too:
+
+```php
+$grant = $fs->presignedPartUpload($path, $uploadId, $n, $expires, null, Crc64Nvme::base64Digest($chunk), 'CRC64NVME', $chunkSize);
+```
+
+`Crc64Nvme` is the package's own implementation (big-endian base64 wire form); a browser
+client mirrors it with a small table-driven routine — `crypto.subtle` has SHA-256 natively
+but no CRC.
 
 **CORS**: the bucket must accept the browser's origin and PUT method (AWS: a CORS
 configuration allowing `PUT` with the `Content-Type` header; R2 and MinIO equivalent).
