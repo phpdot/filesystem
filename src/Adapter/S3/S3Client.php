@@ -117,7 +117,8 @@ final class S3Client
     public function headObject(string $key): array
     {
         $request = $this->requests->createRequest('HEAD', $this->url($key))
-            ->withHeader('x-amz-checksum-mode', 'ENABLED');
+            ->withHeader('x-amz-checksum-mode', 'ENABLED')
+            ->withHeader('Accept-Encoding', 'identity');
         $response = $this->ensureSuccess($this->send($request, self::EMPTY_PAYLOAD_HASH), 'HeadObject ' . $key);
 
         $lastModified = $response->getHeaderLine('Last-Modified');
@@ -130,7 +131,7 @@ final class S3Client
             'size' => (int) $response->getHeaderLine('Content-Length'),
             'lastModified' => $lastModified === '' ? null : $this->httpDate($lastModified),
             'mimeType' => $mimeType === '' ? null : $mimeType,
-            'etag' => trim($response->getHeaderLine('ETag'), '"'),
+            'etag' => $this->normalizeEtag($response->getHeaderLine('ETag')),
             'checksumSha256' => $checksumSha256,
             'checksumCrc64' => $checksumCrc64 === '' ? null : $checksumCrc64,
             'checksumType' => $checksumType === '' ? null : $checksumType,
@@ -256,7 +257,7 @@ final class S3Client
 
         $response = $this->ensureSuccess($this->send($request, self::UNSIGNED_PAYLOAD), 'UploadPart ' . $key);
 
-        $etag = trim($response->getHeaderLine('ETag'), '"');
+        $etag = $this->normalizeEtag($response->getHeaderLine('ETag'));
         if ($etag === '') {
             throw MultipartUploadFailed::withReason('Missing ETag in UploadPart response.');
         }
@@ -601,6 +602,19 @@ final class S3Client
     private function encodeKey(string $key): string
     {
         return implode('/', array_map('rawurlencode', explode('/', ltrim($key, '/'))));
+    }
+
+    /**
+     * ETag. Strip an optional weak-validator prefix before the quotes, so a
+     * weakened answer never leaks into part maps or metadata.
+     *
+     * @param string $etag
+     *
+     * @return string
+     */
+    private function normalizeEtag(string $etag): string
+    {
+        return trim((string) preg_replace('/^W\//', '', $etag), '"');
     }
 
     /**

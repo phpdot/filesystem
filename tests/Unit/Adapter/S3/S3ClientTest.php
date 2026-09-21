@@ -278,6 +278,23 @@ final class S3ClientTest extends TestCase
         self::assertNull($head['checksumType']);
     }
 
+    public function testHeadObjectAsksForIdentityEncoding(): void
+    {
+        $this->http->responses[] = $this->response(200, '');
+        $this->client()->headObject('a.txt');
+
+        self::assertSame('identity', $this->http->requests[0]->getHeaderLine('Accept-Encoding'));
+    }
+
+    public function testEtagsAreStrippedOfAWeakenedPrefixWhereverTheyAreRead(): void
+    {
+        $this->http->responses[] = $this->response(200, '', ['ETag' => 'W/"weak-head"']);
+        $this->http->responses[] = $this->response(200, '', ['ETag' => 'W/"weak-part"']);
+
+        self::assertSame('weak-head', $this->client()->headObject('a.txt')['etag']);
+        self::assertSame('weak-part', $this->client()->uploadPart('a.bin', 'UP1', 1, (new Psr17Factory())->createStream('x'), 1));
+    }
+
     public function testStoredChecksumPrefersSha256ThenCrc64AndNeverReadsTheObject(): void
     {
         $adapter = new S3Adapter(
