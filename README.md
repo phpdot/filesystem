@@ -10,6 +10,7 @@ is built in, and the server (not the browser) picks where bytes land.
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Usage](#usage)
+  - [Reading a range](#reading-a-range)
 - [Architecture](#architecture)
 - [Testing](#testing)
 - [License](#license)
@@ -147,6 +148,19 @@ Beyond read/write/list, the package adds a collect-all **validation** pipeline (
 image dimensions over a bounded prefix), a token **path generator** (`{date}/{uuid}/{hash}`…) so the
 server picks the key, an optional **managed-files** layer that persists a `FileRecord` per file with
 soft-delete and quarantine, and a tus-compatible **resumable upload** endpoint plus CLI uploader.
+
+### Reading a range
+
+`readRange()` returns the bytes from an offset, at most a given length and none past the end, as a stream, so a slice
+of a large object costs only the slice:
+
+```php
+$attachment = $filesystem->readRange('mail/message.eml', offset: 14_601_579, length: 20_480);
+```
+
+The S3 adapter sends one `Range: bytes=start-end` GET (RFC 9110 §14) and streams the `206` body; a store that answers
+`200` with the whole object is cut to the range, and a `416` reads as empty. The local and in-memory adapters seek.
+An adapter that implements no `RangeReader` is streamed from its start and skipped to the offset.
 
 ## Architecture
 

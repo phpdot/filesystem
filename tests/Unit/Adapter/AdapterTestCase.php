@@ -7,11 +7,13 @@ namespace PHPdot\Filesystem\Tests\Unit\Adapter;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPdot\Filesystem\Config;
 use PHPdot\Filesystem\Contract\AdapterInterface;
+use PHPdot\Filesystem\Contract\RangeReader;
 use PHPdot\Filesystem\Contract\StorageAttributes;
 use PHPdot\Filesystem\Exception\UnableToCopyFile;
 use PHPdot\Filesystem\Exception\UnableToMoveFile;
 use PHPdot\Filesystem\Exception\UnableToReadFile;
 use PHPdot\Filesystem\Exception\UnableToRetrieveMetadata;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\StreamFactoryInterface;
 use Psr\Http\Message\StreamInterface;
@@ -338,5 +340,45 @@ abstract class AdapterTestCase extends TestCase
         sort($paths);
 
         return $paths;
+    }
+
+
+    #[Test]
+    public function aRangeReadsThoseBytesAndNoneAround(): void
+    {
+        $bytes = random_bytes(200_000);
+        $this->writeString('r/blob.bin', $bytes);
+        $adapter = $this->rangeReader();
+
+        self::assertSame(substr($bytes, 70_000, 20_480), $adapter->readRange('r/blob.bin', 70_000, 20_480)->getContents());
+        self::assertSame(substr($bytes, 0, 10), $adapter->readRange('r/blob.bin', 0, 10)->getContents());
+        self::assertSame(substr($bytes, 199_990), $adapter->readRange('r/blob.bin', 199_990, 500)->getContents());
+    }
+
+    #[Test]
+    public function aRangePastTheEndOrOfNoLengthIsEmpty(): void
+    {
+        $this->writeString('r/short.txt', 'short');
+        $adapter = $this->rangeReader();
+
+        self::assertSame('', $adapter->readRange('r/short.txt', 50, 10)->getContents());
+        self::assertSame('', $adapter->readRange('r/short.txt', 2, 0)->getContents());
+    }
+
+    #[Test]
+    public function aRangeOfAMissingFileCannotBeRead(): void
+    {
+        $this->expectException(UnableToReadFile::class);
+
+        $this->rangeReader()->readRange('r/missing.bin', 0, 10)->getContents();
+    }
+
+    private function rangeReader(): RangeReader
+    {
+        if (!$this->adapter instanceof RangeReader) {
+            self::markTestSkipped('The adapter reads no ranges.');
+        }
+
+        return $this->adapter;
     }
 }

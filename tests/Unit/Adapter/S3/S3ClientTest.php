@@ -15,6 +15,7 @@ use PHPdot\Filesystem\Config;
 use PHPdot\Filesystem\Exception\InvalidConfigurationValue;
 use PHPdot\Filesystem\Exception\MultipartUploadFailed;
 use PHPdot\Filesystem\Exception\S3RequestFailed;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 
@@ -510,5 +511,33 @@ final class S3ClientTest extends TestCase
             . "<Contents><Key>{$key}</Key><Size>5</Size><ETag>\"e\"</ETag>"
             . '<LastModified>2023-05-01T10:00:00.000Z</LastModified></Contents>'
             . '</ListBucketResult>';
+    }
+
+
+    #[Test]
+    public function aRangeIsAskedForByteForByte(): void
+    {
+        $this->http->responses[] = $this->response(206, 'cdef');
+
+        self::assertSame('cdef', (string) $this->client()->getObjectRange('a.bin', 2, 4));
+        self::assertSame('bytes=2-5', $this->http->requests[0]->getHeaderLine('Range'));
+    }
+
+    #[Test]
+    public function aStoreAnsweringWithTheWholeObjectIsCutToTheRange(): void
+    {
+        $this->http->responses[] = $this->response(200, 'abcdefgh');
+
+        self::assertSame('cdef', $this->client()->getObjectRange('a.bin', 2, 4)->getContents());
+    }
+
+    #[Test]
+    public function aRangePastTheEndIsEmptyAndNoLengthAsksNothing(): void
+    {
+        $this->http->responses[] = $this->response(416);
+
+        self::assertSame('', (string) $this->client()->getObjectRange('a.bin', 100, 4));
+        self::assertSame('', (string) $this->client()->getObjectRange('a.bin', 0, 0));
+        self::assertCount(1, $this->http->requests);
     }
 }

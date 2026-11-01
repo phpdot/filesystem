@@ -28,6 +28,7 @@ use PHPdot\Filesystem\Contract\ChecksumProvider;
 use PHPdot\Filesystem\Contract\MultipartCapable;
 use PHPdot\Filesystem\Contract\PresignedUploadGenerator;
 use PHPdot\Filesystem\Contract\PublicUrlGenerator;
+use PHPdot\Filesystem\Contract\RangeReader;
 use PHPdot\Filesystem\Contract\TemporaryUrlGenerator;
 use PHPdot\Filesystem\Exception\S3RequestFailed;
 use PHPdot\Filesystem\Exception\UnableToCheckExistence;
@@ -40,7 +41,7 @@ use PHPdot\Filesystem\Path\PathPrefixer;
 use PHPdot\Filesystem\Upload\PresignedUpload;
 use Psr\Http\Message\StreamInterface;
 
-final class S3Adapter implements AdapterInterface, ChecksumProvider, MultipartCapable, PresignedUploadGenerator, PublicUrlGenerator, TemporaryUrlGenerator
+final class S3Adapter implements AdapterInterface, ChecksumProvider, MultipartCapable, PresignedUploadGenerator, PublicUrlGenerator, RangeReader, TemporaryUrlGenerator
 {
     private const HASH_BUFFER = 1048576;
 
@@ -147,6 +148,15 @@ final class S3Adapter implements AdapterInterface, ChecksumProvider, MultipartCa
     {
         try {
             return $this->client->getObject($this->prefixer->prefixPath($path));
+        } catch (S3RequestFailed $exception) {
+            throw UnableToReadFile::fromLocation($path, $exception->getMessage(), $exception);
+        }
+    }
+
+    public function readRange(string $path, int $offset, int $length): StreamInterface
+    {
+        try {
+            return $this->client->getObjectRange($this->prefixer->prefixPath($path), $offset, $length);
         } catch (S3RequestFailed $exception) {
             throw UnableToReadFile::fromLocation($path, $exception->getMessage(), $exception);
         }

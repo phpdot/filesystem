@@ -16,9 +16,11 @@ use PHPdot\Filesystem\Exception\PathTraversalDetected;
 use PHPdot\Filesystem\Exception\UnableToGeneratePublicUrl;
 use PHPdot\Filesystem\Exception\UnableToGenerateTemporaryUrl;
 use PHPdot\Filesystem\Exception\UnableToPresignUpload;
+use PHPdot\Filesystem\Exception\UnableToReadFile;
 use PHPdot\Filesystem\Exception\UnableToWriteFile;
 use PHPdot\Filesystem\Filesystem;
 use PHPdot\Filesystem\Write\WriteContents;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 final class FilesystemTest extends TestCase
@@ -239,5 +241,27 @@ final class FilesystemTest extends TestCase
     private function writeContents(): WriteContents
     {
         return new WriteContents(new Psr17Factory());
+    }
+
+
+    #[Test]
+    public function anAdapterWithoutRangesIsReadFromItsStartAndCut(): void
+    {
+        $adapter = $this->adapter();
+        $adapter->write('plain.bin', (new Psr17Factory())->createStream('0123456789'), new Config());
+        $fs = new Filesystem(new StubAdapter($adapter), $this->writeContents());
+
+        self::assertSame('3456', $fs->readRange('plain.bin', 3, 4)->getContents());
+        self::assertSame('89', $fs->readRange('plain.bin', 8, 100)->getContents());
+        self::assertSame('', $fs->readRange('plain.bin', 50, 4)->getContents());
+    }
+
+    #[Test]
+    public function aNegativeRangeIsRefused(): void
+    {
+        $fs = new Filesystem($this->adapter(), $this->writeContents());
+
+        $this->expectException(UnableToReadFile::class);
+        $fs->readRange('any.bin', -1, 4);
     }
 }

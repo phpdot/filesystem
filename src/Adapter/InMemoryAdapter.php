@@ -23,6 +23,7 @@ use PHPdot\Filesystem\Attributes\FileAttributes;
 use PHPdot\Filesystem\Config;
 use PHPdot\Filesystem\Contract\AdapterInterface;
 use PHPdot\Filesystem\Contract\ChecksumProvider;
+use PHPdot\Filesystem\Contract\RangeReader;
 use PHPdot\Filesystem\Exception\UnableToCopyFile;
 use PHPdot\Filesystem\Exception\UnableToMoveFile;
 use PHPdot\Filesystem\Exception\UnableToReadFile;
@@ -32,7 +33,7 @@ use PHPdot\Filesystem\Visibility;
 use Psr\Http\Message\StreamFactoryInterface;
 use Psr\Http\Message\StreamInterface;
 
-final class InMemoryAdapter implements AdapterInterface, ChecksumProvider
+final class InMemoryAdapter implements AdapterInterface, ChecksumProvider, RangeReader
 {
     /**
      * @var array<string,array{contents:string,visibility:string,lastModified:int}>
@@ -112,6 +113,14 @@ final class InMemoryAdapter implements AdapterInterface, ChecksumProvider
     public function readStream(string $path): StreamInterface
     {
         $stream = $this->streamFactory->createStream($this->read($path));
+        $stream->rewind();
+
+        return $stream;
+    }
+
+    public function readRange(string $path, int $offset, int $length): StreamInterface
+    {
+        $stream = $this->streamFactory->createStream(substr($this->read($path), $offset, $length));
         $stream->rewind();
 
         return $stream;

@@ -22,6 +22,7 @@ use DateTimeZone;
 use PHPdot\Filesystem\Exception\InvalidConfigurationValue;
 use PHPdot\Filesystem\Exception\MultipartUploadFailed;
 use PHPdot\Filesystem\Exception\S3RequestFailed;
+use PHPdot\Filesystem\Stream\LimitedStream;
 use PHPdot\Filesystem\Upload\PresignedUpload;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Client\ClientInterface;
@@ -101,6 +102,46 @@ final class S3Client
         $request = $this->requests->createRequest('GET', $this->url($key));
 
         return $this->ensureSuccess($this->send($request, self::EMPTY_PAYLOAD_HASH), 'GetObject ' . $key)->getBody();
+    }
+
+    /**
+     * A GET with `Range` (RFC 9110 §14): the 206 body as it streams, a 416 as nothing, and a store answering 200 for the
+     * whole object cut to the range here.
+     *
+     * @param non-negative-int $offset
+     * @param non-negative-int $length
+     *
+     * @throws S3RequestFailed When the store answers with any other error.
+     */
+    public function getObjectRange(string $key, int $offset, int $length): StreamInterface
+    {
+        if ($length === 0) {
+            return $this->streams->createStream('');
+        }
+
+        $request = $this->requests->createRequest('GET', $this->url($key))
+            ->withHeader('Range', sprintf('bytes=%d-%d', $offset, $offset + $length - 1));
+        $response = $this->send($request, self::EMPTY_PAYLOAD_HASH);
+
+        if ($response->getStatusCode() === 416) {
+            return $this->streams->createStream('');
+        }
+
+        $body = $this->ensureSuccess($response, 'GetObject ' . $key)->getBody();
+
+        if ($response->getStatusCode() === 206) {
+            return $body;
+        }
+
+        for ($skipped = 0; $skipped < $offset && !$body->eof(); $skipped += strlen($chunk)) {
+            $chunk = $body->read(min(1_048_576, $offset - $skipped));
+
+            if ($chunk === '') {
+                break;
+            }
+        }
+
+        return new LimitedStream($body, $length);
     }
 
     /**

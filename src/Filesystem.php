@@ -29,6 +29,7 @@ use PHPdot\Filesystem\Contract\FilesystemInterface;
 use PHPdot\Filesystem\Contract\PathNormalizer;
 use PHPdot\Filesystem\Contract\PresignedUploadGenerator;
 use PHPdot\Filesystem\Contract\PublicUrlGenerator;
+use PHPdot\Filesystem\Contract\RangeReader;
 use PHPdot\Filesystem\Contract\TemporaryUrlGenerator;
 use PHPdot\Filesystem\Event\UploadCompleted;
 use PHPdot\Filesystem\Event\UploadFailed;
@@ -36,8 +37,10 @@ use PHPdot\Filesystem\Event\UploadProgressed;
 use PHPdot\Filesystem\Exception\UnableToGeneratePublicUrl;
 use PHPdot\Filesystem\Exception\UnableToGenerateTemporaryUrl;
 use PHPdot\Filesystem\Exception\UnableToPresignUpload;
+use PHPdot\Filesystem\Exception\UnableToReadFile;
 use PHPdot\Filesystem\Exception\UnableToRetrieveMetadata;
 use PHPdot\Filesystem\Path\WhitespacePathNormalizer;
+use PHPdot\Filesystem\Stream\LimitedStream;
 use PHPdot\Filesystem\Stream\ProgressStream;
 use PHPdot\Filesystem\Upload\PresignedUpload;
 use PHPdot\Filesystem\Write\WriteContents;
@@ -98,6 +101,39 @@ final class Filesystem implements FilesystemInterface
     public function readStream(string $path): StreamInterface
     {
         return $this->adapter->readStream($this->normalizer->normalizePath($path));
+    }
+
+    /**
+     * A ranged read from an adapter that offers one; from any other, its stream from the start, skipped to the offset
+     * a buffer at a time.
+     */
+    public function readRange(string $path, int $offset, int $length): StreamInterface
+    {
+        if ($offset < 0 || $length < 0) {
+            throw UnableToReadFile::fromLocation($path, 'A range needs a non-negative offset and length.');
+        }
+
+        $normalized = $this->normalizer->normalizePath($path);
+
+        if ($this->adapter instanceof RangeReader) {
+            return $this->adapter->readRange($normalized, $offset, $length);
+        }
+
+        $stream = $this->adapter->readStream($normalized);
+
+        if ($stream->isSeekable()) {
+            $stream->seek(min($offset, $stream->getSize() ?? $offset));
+        } else {
+            for ($skipped = 0; $skipped < $offset && !$stream->eof(); $skipped += strlen($chunk)) {
+                $chunk = $stream->read(min(self::HASH_BUFFER, $offset - $skipped));
+
+                if ($chunk === '') {
+                    break;
+                }
+            }
+        }
+
+        return new LimitedStream($stream, $length);
     }
 
     public function listContents(string $path, bool $deep = false): DirectoryListing

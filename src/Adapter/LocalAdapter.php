@@ -29,6 +29,7 @@ use PHPdot\Filesystem\Contract\AdapterInterface;
 use PHPdot\Filesystem\Contract\ChecksumProvider;
 use PHPdot\Filesystem\Contract\MultipartCapable;
 use PHPdot\Filesystem\Contract\PublicUrlGenerator;
+use PHPdot\Filesystem\Contract\RangeReader;
 use PHPdot\Filesystem\Exception\UnableToCopyFile;
 use PHPdot\Filesystem\Exception\UnableToCreateDirectory;
 use PHPdot\Filesystem\Exception\UnableToDeleteDirectory;
@@ -41,6 +42,7 @@ use PHPdot\Filesystem\Exception\UnableToSetVisibility;
 use PHPdot\Filesystem\Exception\UnableToWriteFile;
 use PHPdot\Filesystem\FilesystemConfig;
 use PHPdot\Filesystem\Path\PathPrefixer;
+use PHPdot\Filesystem\Stream\LimitedStream;
 use Psr\Http\Message\StreamFactoryInterface;
 use Psr\Http\Message\StreamInterface;
 use RecursiveDirectoryIterator;
@@ -49,7 +51,7 @@ use SplFileInfo;
 
 #[Singleton]
 #[Binds(AdapterInterface::class)]
-final class LocalAdapter implements AdapterInterface, ChecksumProvider, MultipartCapable, PublicUrlGenerator
+final class LocalAdapter implements AdapterInterface, ChecksumProvider, MultipartCapable, PublicUrlGenerator, RangeReader
 {
     private const WRITE_BUFFER = 1048576;
 
@@ -137,6 +139,14 @@ final class LocalAdapter implements AdapterInterface, ChecksumProvider, Multipar
         }
 
         return $this->streamFactory->createStreamFromResource($handle);
+    }
+
+    public function readRange(string $path, int $offset, int $length): StreamInterface
+    {
+        $stream = $this->readStream($path);
+        $stream->seek(min($offset, $stream->getSize() ?? $offset));
+
+        return new LimitedStream($stream, $length);
     }
 
     public function delete(string $path): void

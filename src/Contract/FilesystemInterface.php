@@ -14,6 +14,7 @@ namespace PHPdot\Filesystem\Contract;
 
 use DateTimeInterface;
 use PHPdot\Filesystem\DirectoryListing;
+use PHPdot\Filesystem\Exception\UnableToReadFile;
 use PHPdot\Filesystem\Visibility;
 use Psr\Http\Message\StreamInterface;
 use Psr\Http\Message\UploadedFileInterface;
@@ -64,6 +65,13 @@ interface FilesystemInterface
      * @return StreamInterface
      */
     public function readStream(string $path): StreamInterface;
+
+    /**
+     * The bytes from `$offset`, at most `$length` of them, as a stream: one ranged read where the storage offers it.
+     *
+     * @throws UnableToReadFile When the file cannot be read or the range is negative.
+     */
+    public function readRange(string $path, int $offset, int $length): StreamInterface;
 
     /**
      * List contents.
